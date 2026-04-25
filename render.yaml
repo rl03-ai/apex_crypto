@@ -21,7 +21,7 @@ services:
         value: "10"
       - key: PORTFOLIO_UPDATE_INTERVAL_MINUTES
         value: "15"
-      # Domínio do frontend — o Render gera automaticamente <name>.onrender.com
+      # Domínio do frontend — confirma o URL exacto após o primeiro deploy
       - key: ALLOWED_ORIGINS
         value: "https://apex-crypto-terminal.onrender.com"
 
@@ -32,8 +32,3 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeploy: false
     plan: free
-    # O frontend é compilado com a URL pública do backend.
-    # Se mudares o nome do serviço backend, actualiza este URL.
-    dockerBuildArgs:
-      - key: VITE_API_BASE_URL
-        value: "https://apex-crypto-api.onrender.com"

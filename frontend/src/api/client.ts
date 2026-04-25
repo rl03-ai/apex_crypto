@@ -1,4 +1,33 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
+/**
+ * Resolve a URL base do backend.
+ *
+ * Prioridade:
+ *   1. VITE_API_BASE_URL (se definido na build)
+ *   2. localhost:8001 quando o frontend corre em localhost (dev)
+ *   3. Deriva do hostname: apex-crypto-terminal.onrender.com → apex-crypto-api.onrender.com
+ *      (ou em geral: substitui "-terminal" por "-api" no hostname)
+ *   4. Mesma origem (último recurso, pressupõe proxy)
+ */
+function resolveBase(): string {
+  const fromEnv = import.meta.env.VITE_API_BASE_URL
+  if (fromEnv) return fromEnv
+
+  if (typeof window === 'undefined') return 'http://localhost:8001'
+
+  const { hostname, protocol } = window.location
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8001'
+  }
+
+  if (hostname.includes('-terminal')) {
+    return `${protocol}//${hostname.replace('-terminal', '-api')}`
+  }
+
+  return `${protocol}//${hostname}`
+}
+
+const BASE = resolveBase()
 
 function token(): string {
   return localStorage.getItem('apex_token') || ''
