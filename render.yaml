@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: apex-crypto-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # IMPORTANTE: Cola aqui a DATABASE_URL do Neon depois do primeiro deploy
+      # https://neon.tech → New Project → copia "Connection string" (modo "Pooled")
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: ALERT_CHECK_INTERVAL_MINUTES
+        value: "10"
+      - key: PORTFOLIO_UPDATE_INTERVAL_MINUTES
+        value: "15"
+      - key: ALLOWED_ORIGINS
+        value: "https://apex-crypto-terminal.onrender.com"
+
+  - type: web
+    name: apex-crypto-terminal
+    runtime: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    plan: free
+    envVars:
+      - key: BACKEND_UPSTREAM
+        value: http://apex-crypto-api:10000
