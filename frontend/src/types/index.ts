@@ -12,6 +12,7 @@ export interface CryptoAsset {
   change_7d: number
   change_30d: number
   ath_change: number
+  sparkline_7d: number[]
   // score dims
   adoption: number
   quality: number
@@ -170,4 +171,13 @@ export interface AssetDetail extends CryptoAsset {
   community: Community
   links: AssetLinks
   tvl: TvlData | null
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+export interface SearchResult {
+  id: string
+  symbol: string
+  name: string
+  thumb: string | null
+  market_cap_rank: number | null
 }

@@ -7,7 +7,7 @@ import re
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.services.coingecko import fetch_chart, fetch_coin_detail, fetch_markets
+from app.services.coingecko import fetch_chart, fetch_coin_detail, fetch_markets, search_coins
 from app.services.scoring import crypto_score, reasons
 
 log = logging.getLogger(__name__)
@@ -18,6 +18,8 @@ router = APIRouter()
 
 def _enrich(row: dict) -> dict:
     score = crypto_score(row)
+    # CoinGecko devolve sparkline em row['sparkline_in_7d']['price']
+    sparkline = (row.get('sparkline_in_7d') or {}).get('price') or []
     return {
         'id':          row.get('id'),
         'symbol':      (row.get('symbol') or '').upper(),
@@ -29,8 +31,9 @@ def _enrich(row: dict) -> dict:
         'volume_24h':  row.get('total_volume'),
         'change_24h':  row.get('price_change_percentage_24h'),
         'change_7d':   row.get('price_change_percentage_7d_in_currency'),
-        'change_30d':  row.get('price_change_percentage_30d_in_currency'),
+        'change_30d': row.get('price_change_percentage_30d_in_currency'),
         'ath_change':  row.get('ath_change_percentage'),
+        'sparkline_7d': sparkline,
         **score,
         'why_selected': reasons(row, score),
     }
@@ -96,6 +99,12 @@ async def scanner(limit: int = Query(80, le=250)) -> list[dict]:
     data = await fetch_markets(limit=limit)
     enriched = [_enrich(x) for x in data]
     return sorted(enriched, key=lambda x: x['priority_score'], reverse=True)
+
+
+@router.get('/search')
+async def search(q: str = Query(..., min_length=1, max_length=50), limit: int = Query(15, le=30)) -> list[dict]:
+    """Pesquisa global de moedas no CoinGecko (13k+ moedas)."""
+    return await search_coins(q, limit=limit)
 
 
 @router.get('/asset/{coin_id}')

@@ -3,15 +3,29 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { fetchAlerts, fetchMe } from '../api/endpoints'
 import { clearToken } from '../api/client'
 import type { UserOut } from '../types'
+import { SearchPalette } from './SearchPalette'
 
 export function Layout() {
   const nav = useNavigate()
-  const [unread, setUnread] = useState(0)
-  const [user,   setUser]   = useState<UserOut | null>(null)
+  const [unread,        setUnread]        = useState(0)
+  const [user,          setUser]          = useState<UserOut | null>(null)
+  const [searchOpen,    setSearchOpen]    = useState(false)
 
   useEffect(() => {
     fetchAlerts(false).then(a => setUnread(a.length)).catch(() => {})
     fetchMe().then(setUser).catch(() => {})
+  }, [])
+
+  // Ctrl+K (ou Cmd+K) abre a palette
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(s => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   function handleLogout() {
@@ -29,6 +43,12 @@ export function Layout() {
             <small>trading dashboard</small>
           </div>
         </div>
+
+        {/* Botão de pesquisa global */}
+        <button className="search-trigger" onClick={() => setSearchOpen(true)}>
+          <span>🔍 Pesquisar moedas…</span>
+          <kbd>Ctrl+K</kbd>
+        </button>
 
         <nav>
           <NavLink to="/" end>
@@ -63,6 +83,8 @@ export function Layout() {
       <main className="main">
         <Outlet />
       </main>
+
+      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

@@ -68,7 +68,7 @@ async def fetch_markets(limit: int = 80, page: int = 1) -> list[dict]:
         'order': 'market_cap_desc',
         'per_page': min(limit, 250),
         'page': page,
-        'sparkline': 'false',
+        'sparkline': 'true',
         'price_change_percentage': '7d,30d',
     }
     try:
@@ -142,3 +142,43 @@ async def fetch_chart(coin_id: str, days: int = 90) -> list[dict]:
             return [{'date': p[0], 'price': p[1]} for p in js.get('prices', [])]
     except Exception:
         return [{'date': i * 86_400_000, 'price': 100 + i * 0.7 + (i % 9) * 2} for i in range(days)]
+
+
+async def search_coins(query: str, limit: int = 15) -> list[dict]:
+    """Pesquisa moedas no CoinGecko por nome ou símbolo.
+
+    Retorna lista de matches (sem preços — para isso, fetch_markets_by_ids).
+    """
+    if not query or len(query.strip()) < 1:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=10, headers=_headers()) as client:
+            r = await client.get(f'{BASE}/search', params={'query': query.strip()})
+            r.raise_for_status()
+            data = r.json()
+            coins = data.get('coins', [])[:limit]
+            # Normalizar para o formato que o frontend espera
+            return [
+                {
+                    'id':         c.get('id'),
+                    'symbol':     (c.get('symbol') or '').upper(),
+                    'name':       c.get('name'),
+                    'thumb':      c.get('thumb'),
+                    'market_cap_rank': c.get('market_cap_rank'),
+                }
+                for c in coins
+                if c.get('id')
+            ]
+    except Exception:
+        # Fallback offline — pesquisa nas demos
+        q = query.lower()
+        return [
+            {
+                'id': d['id'], 'symbol': d['symbol'].upper(),
+                'name': d['name'], 'thumb': None,
+                'market_cap_rank': d.get('market_cap_rank'),
+            }
+            for d in DEMO_MARKETS
+            if q in d['id'].lower() or q in d['symbol'].lower() or q in d['name'].lower()
+        ][:limit]

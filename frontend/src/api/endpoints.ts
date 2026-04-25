@@ -2,6 +2,7 @@ import { api, setToken } from './client'
 import type {
   Alert, AssetDetail, ChartPoint, CryptoAsset, FearGreed,
   Portfolio, PortfolioSummary, Position,
+  SearchResult,
   TokenResponse, UserOut,
   WatchlistEnriched, WatchlistEntry,
 } from '../types'
@@ -22,6 +23,8 @@ export const fetchScanner    = (limit = 80)   => api.get<CryptoAsset[]>(`/crypto
 export const fetchAsset      = (id: string)   => api.get<CryptoAsset>(`/crypto/asset/${id}`)
 export const fetchDetail     = (id: string)   => api.get<AssetDetail>(`/crypto/detail/${id}`)
 export const fetchChart      = (id: string, days = 90) => api.get<ChartPoint[]>(`/crypto/chart/${id}?days=${days}`)
+export const searchCoins     = (q: string, limit = 15) =>
+  api.get<SearchResult[]>(`/crypto/search?q=${encodeURIComponent(q)}&limit=${limit}`)
 
 // ── Market ────────────────────────────────────────────────────────────────────
 export const fetchFearGreed  = ()             => api.get<FearGreed>('/market/fear-greed')

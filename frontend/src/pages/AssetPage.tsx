@@ -4,8 +4,11 @@ import {
   Area, AreaChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { fetchDetail, fetchChart } from '../api/endpoints'
-import type { AssetDetail, ChartPoint } from '../types'
+import {
+  fetchDetail, fetchChart,
+  fetchWatchlist, addToWatchlist, removeFromWatchlist,
+} from '../api/endpoints'
+import type { AssetDetail, ChartPoint, WatchlistEntry } from '../types'
 import { ScoreBar } from '../components/ScoreBar'
 
 // ── formatadores ──────────────────────────────────────────────────────────────
@@ -215,19 +218,38 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 export function AssetPage() {
   const { id = '' } = useParams()
   const nav = useNavigate()
-  const [asset,   setAsset]   = useState<AssetDetail | null>(null)
-  const [chart,   setChart]   = useState<ChartPoint[]>([])
-  const [days,    setDays]    = useState(90)
-  const [loading, setLoading] = useState(true)
-  const [err,     setErr]     = useState('')
+  const [asset,    setAsset]    = useState<AssetDetail | null>(null)
+  const [chart,    setChart]    = useState<ChartPoint[]>([])
+  const [days,     setDays]     = useState(90)
+  const [loading,  setLoading]  = useState(true)
+  const [err,      setErr]      = useState('')
+  const [wlEntry,  setWlEntry]  = useState<WatchlistEntry | null>(null)
+  const [wlBusy,   setWlBusy]   = useState(false)
 
   useEffect(() => {
     setLoading(true); setErr('')
     Promise.all([
       fetchDetail(id).then(setAsset).catch(() => setErr('Ativo não encontrado ou erro de rede')),
       fetchChart(id, days).then(setChart).catch(() => setChart([])),
+      fetchWatchlist().then(wl => setWlEntry(wl.find(e => e.coin_id === id) || null)).catch(() => {}),
     ]).finally(() => setLoading(false))
   }, [id, days])
+
+  async function toggleWatchlist() {
+    if (!asset) return
+    setWlBusy(true)
+    try {
+      if (wlEntry) {
+        await removeFromWatchlist(wlEntry.id)
+        setWlEntry(null)
+      } else {
+        const e = await addToWatchlist(asset.id, asset.symbol, asset.name)
+        setWlEntry(e)
+      }
+    } finally {
+      setWlBusy(false)
+    }
+  }
 
   if (loading) return <div className="card loading-card">A carregar detalhe...</div>
   if (err || !asset) return (
@@ -287,6 +309,14 @@ export function AssetPage() {
             <strong style={{ color: barColor(asset.total_score) }}>{asset.total_score.toFixed(0)}</strong>
             <span className={`pill ${asset.state}`} style={{ display: 'inline-block', marginTop: 8 }}>{asset.state}</span>
           </div>
+          <button
+            className={wlEntry ? 'btn-ghost' : 'btn'}
+            onClick={toggleWatchlist}
+            disabled={wlBusy}
+            style={{ width: '100%' }}
+          >
+            {wlBusy ? '…' : wlEntry ? '★ Na watchlist · remover' : '☆ Adicionar à watchlist'}
+          </button>
           {asset.tvl && <TvlPanel tvl={asset.tvl} />}
         </div>
       </section>
