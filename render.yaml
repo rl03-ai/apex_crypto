@@ -8,8 +8,7 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      # IMPORTANTE: Cola aqui a DATABASE_URL do Neon depois do primeiro deploy
-      # https://neon.tech → New Project → copia "Connection string" (modo "Pooled")
+      # Cola aqui a connection string do Neon (modo Pooled, sem &channel_binding=require)
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
@@ -22,6 +21,7 @@ services:
         value: "10"
       - key: PORTFOLIO_UPDATE_INTERVAL_MINUTES
         value: "15"
+      # Domínio do frontend — o Render gera automaticamente <name>.onrender.com
       - key: ALLOWED_ORIGINS
         value: "https://apex-crypto-terminal.onrender.com"
 
@@ -32,6 +32,8 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeploy: false
     plan: free
-    envVars:
-      - key: BACKEND_UPSTREAM
-        value: http://apex-crypto-api:10000
+    # O frontend é compilado com a URL pública do backend.
+    # Se mudares o nome do serviço backend, actualiza este URL.
+    dockerBuildArgs:
+      - key: VITE_API_BASE_URL
+        value: "https://apex-crypto-api.onrender.com"

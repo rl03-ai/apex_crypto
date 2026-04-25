@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DBSession
@@ -75,7 +75,7 @@ def get_portfolio(portfolio_id: str, current_user: CurrentUser, db: DBSession) -
     }
 
 
-@router.delete('/{portfolio_id}', status_code=204)
+@router.delete('/{portfolio_id}')
 def delete_portfolio(portfolio_id: str, current_user: CurrentUser, db: DBSession) -> None:
     portfolio = _portfolio_or_404(portfolio_id, current_user.id, db)
     db.delete(portfolio)
@@ -171,7 +171,7 @@ def update_position(
     return position
 
 
-@router.delete('/{portfolio_id}/positions/{position_id}', status_code=204)
+@router.delete('/{portfolio_id}/positions/{position_id}')
 def delete_position(
     portfolio_id: str, position_id: str, current_user: CurrentUser, db: DBSession
 ) -> None:

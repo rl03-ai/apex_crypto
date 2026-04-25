@@ -7,7 +7,7 @@ PUT  /watchlist/{id}      → editar alertas/notas
 DELETE /watchlist/{id}    → remover
 GET  /watchlist/enriched  → lista com dados live do CoinGecko
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DBSession
@@ -114,7 +114,7 @@ def update_entry(
     return entry
 
 
-@router.delete('/{entry_id}', status_code=204)
+@router.delete('/{entry_id}')
 def remove_entry(entry_id: str, current_user: CurrentUser, db: DBSession) -> None:
     entry = _get_or_404(entry_id, current_user.id, db)
     db.delete(entry)

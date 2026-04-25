@@ -5,7 +5,7 @@ POST /alerts/{id}/read → marcar como lido
 POST /alerts/read-all  → marcar todos como lidos
 DELETE /alerts/{id}    → eliminar
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from app.api.deps import CurrentUser, DBSession
 from app.models.alert import Alert
@@ -50,7 +50,7 @@ def mark_all_read(current_user: CurrentUser, db: DBSession) -> dict:
     return {'marked_read': updated}
 
 
-@router.delete('/{alert_id}', status_code=204)
+@router.delete('/{alert_id}')
 def delete_alert(alert_id: str, current_user: CurrentUser, db: DBSession) -> None:
     alert = db.query(Alert).filter(Alert.id == alert_id, Alert.user_id == current_user.id).first()
     if not alert:
