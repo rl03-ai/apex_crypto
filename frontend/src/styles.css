@@ -673,3 +673,126 @@ td small { display: block; color: #8da2c0; font-size: 12px }
   cursor: pointer;
 }
 .auto-refresh-toggle input { cursor: pointer }
+
+/* ── Trend Badge ─────────────────────────────────────────────────────────── */
+.trend-badge {
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Technical Panel ─────────────────────────────────────────────────────── */
+.tech-panel { display: flex; flex-direction: column; gap: 22px }
+.tech-row { display: grid; gap: 18px }
+.tech-row-meters  { grid-template-columns: repeat(3, 1fr) }
+.tech-row-states  { grid-template-columns: repeat(3, 1fr) }
+.tech-row-pivots  { grid-template-columns: 1fr auto 1fr; gap: 22px; align-items: stretch }
+
+.tech-meter {
+  background: #0a1624;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tech-meter-head { display: flex; justify-content: space-between; align-items: baseline }
+.tech-meter-head small { color: #6b7fa0; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase }
+.tech-meter-head strong { font-size: 22px }
+.tech-meter-head strong small { font-size: 11px; font-weight: 500; color: #8da2c0; margin-left: 4px }
+.tech-hint { color: #6b7fa0; font-size: 11px; margin-top: 4px }
+
+/* zone colors */
+.zone-oversold   { color: #22c55e }
+.zone-overbought { color: #fb7185 }
+.zone-neutral    { color: #facc15 }
+.adx-weak     { color: #6b7fa0 }
+.adx-moderate { color: #facc15 }
+.adx-strong   { color: #22c55e }
+
+/* RSI bar */
+.rsi-bar-wrap { position: relative; height: 12px; border-radius: 99px; overflow: hidden }
+.rsi-zones { display: flex; height: 100%; width: 100% }
+.rsi-zone-os  { width: 30%; background: rgba(34, 197, 94, 0.25) }
+.rsi-zone-mid { width: 40%; background: #1d2d49 }
+.rsi-zone-ob  { width: 30%; background: rgba(251, 113, 133, 0.25) }
+.rsi-marker {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 18px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translateX(-2px);
+  box-shadow: 0 0 6px #fff8;
+}
+.rsi-labels  { display: flex; justify-content: space-between; font-size: 10px; color: #6b7fa0 }
+
+/* Bollinger bar */
+.bb-bar-wrap {
+  position: relative;
+  height: 10px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #fb7185 0%, #1d2d49 50%, #22c55e 100%);
+  opacity: 0.8;
+}
+.bb-marker {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 16px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translateX(-2px);
+  box-shadow: 0 0 6px #fff8;
+}
+.bb-labels { display: flex; justify-content: space-between; font-size: 10px; color: #6b7fa0 }
+
+/* DI rows */
+.di-row { display: flex; gap: 14px }
+.di-line { display: flex; align-items: baseline; gap: 6px }
+.di-line small { font-size: 11px; color: #6b7fa0; font-weight: 600 }
+.di-line strong { font-size: 16px }
+
+/* State chips */
+.state-chip {
+  background: #0a1624;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.state-chip small  { color: #6b7fa0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em }
+.state-chip strong { font-size: 18px }
+
+/* Pivots */
+.pivot-side { display: flex; flex-direction: column; gap: 8px }
+.pivot-side > small { color: #6b7fa0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em }
+.pivot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
+.pivot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 12px;
+  background: #0a1624;
+  border-left: 3px solid;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.pivot-item.resist  { border-left-color: #fb7185 }
+.pivot-item.support { border-left-color: #22c55e }
+.pivot-item span { font-size: 12px }
+.pivot-divider { width: 1px; background: var(--border) }
+
+@media (max-width: 900px) {
+  .tech-row-meters { grid-template-columns: 1fr }
+  .tech-row-states { grid-template-columns: 1fr }
+  .tech-row-pivots { grid-template-columns: 1fr; gap: 16px }
+  .pivot-divider   { display: none }
+}

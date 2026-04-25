@@ -138,12 +138,14 @@ async def asset_brief(coin_id: str) -> dict:
 
 @router.get('/detail/{coin_id}')
 async def asset_detail_full(coin_id: str) -> dict:
-    """Dados completos: tokenomics, ATH/ATL, TVL (DefiLlama), community, links."""
+    """Dados completos: tokenomics, ATH/ATL, TVL (DefiLlama), community, links, análise técnica."""
     from app.services.defillama import fetch_tvl
+    from app.services.technical import analyse_chart
 
-    detail, tvl = await asyncio.gather(
+    detail, tvl, chart_pts = await asyncio.gather(
         fetch_coin_detail(coin_id),
         fetch_tvl(coin_id),
+        fetch_chart(coin_id, days=90),
         return_exceptions=True,
     )
 
@@ -151,6 +153,8 @@ async def asset_detail_full(coin_id: str) -> dict:
         detail = {}
     if isinstance(tvl, Exception):
         tvl = None
+    if isinstance(chart_pts, Exception):
+        chart_pts = []
 
     if not detail:
         raise HTTPException(404, f'Moeda {coin_id!r} não encontrada')
@@ -197,6 +201,7 @@ async def asset_detail_full(coin_id: str) -> dict:
         'community':  _parse_community(detail),
         'links':      _parse_links(detail),
         'tvl':        tvl,
+        'technical':  analyse_chart([p['price'] for p in (chart_pts or [])]),
     }
 
 

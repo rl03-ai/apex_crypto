@@ -203,6 +203,154 @@ function CommunityPanel({ c }: { c: AssetDetail['community'] }) {
   )
 }
 
+// ── Trend Badge (aparece no hero) ────────────────────────────────────────────
+function TrendBadge({ tech }: { tech: AssetDetail['technical'] }) {
+  if (!tech) return null
+  const labels: Record<string, { text: string; color: string; icon: string }> = {
+    uptrend:   { text: 'Uptrend',   color: '#22c55e', icon: '↗' },
+    downtrend: { text: 'Downtrend', color: '#fb7185', icon: '↘' },
+    range:     { text: 'Range',     color: '#facc15', icon: '↔' },
+  }
+  const l = labels[tech.trend] || labels.range
+  return (
+    <span className="trend-badge" style={{ background: `${l.color}22`, color: l.color, borderColor: `${l.color}55` }}>
+      {l.icon} {l.text} <small style={{ marginLeft: 6, opacity: 0.7 }}>· {tech.bull_signals}/4</small>
+    </span>
+  )
+}
+
+// ── Technical Analysis Panel ─────────────────────────────────────────────────
+function TechnicalPanel({ tech, currentPrice }: { tech: AssetDetail['technical']; currentPrice: number }) {
+  if (!tech) return null
+
+  return (
+    <div className="tech-panel">
+      <div className="tech-row tech-row-meters">
+        {/* RSI */}
+        <div className="tech-meter">
+          <div className="tech-meter-head">
+            <small>RSI (14)</small>
+            <strong className={`zone-${tech.rsi_zone}`}>
+              {tech.rsi != null ? tech.rsi.toFixed(0) : '—'}
+            </strong>
+          </div>
+          <div className="rsi-bar-wrap">
+            <div className="rsi-zones">
+              <div className="rsi-zone-os" />
+              <div className="rsi-zone-mid" />
+              <div className="rsi-zone-ob" />
+            </div>
+            {tech.rsi != null && (
+              <div className="rsi-marker" style={{ left: `${Math.max(0, Math.min(100, tech.rsi))}%` }} />
+            )}
+          </div>
+          <div className="rsi-labels">
+            <span>30 oversold</span>
+            <span>70 overbought</span>
+          </div>
+        </div>
+
+        {/* ADX */}
+        <div className="tech-meter">
+          <div className="tech-meter-head">
+            <small>ADX (14)</small>
+            <strong className={`adx-${tech.adx_strength}`}>
+              {tech.adx != null ? tech.adx.toFixed(0) : '—'} <small>{tech.adx_strength}</small>
+            </strong>
+          </div>
+          <div className="di-row">
+            <div className="di-line">
+              <small>+DI</small>
+              <strong className="pos">{tech.di_plus != null ? tech.di_plus.toFixed(0) : '—'}</strong>
+            </div>
+            <div className="di-line">
+              <small>−DI</small>
+              <strong className="neg">{tech.di_minus != null ? tech.di_minus.toFixed(0) : '—'}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Bollinger */}
+        <div className="tech-meter">
+          <div className="tech-meter-head">
+            <small>Bollinger</small>
+            <strong>{tech.bb_position != null ? `${tech.bb_position.toFixed(0)}%` : '—'}</strong>
+          </div>
+          <div className="bb-bar-wrap">
+            {tech.bb_position != null && (
+              <div className="bb-marker" style={{ left: `${Math.max(0, Math.min(100, tech.bb_position))}%` }} />
+            )}
+          </div>
+          <div className="bb-labels">
+            <span>lower</span>
+            <span>upper</span>
+          </div>
+          <small className="tech-hint">Largura: {tech.bb_width != null ? `${tech.bb_width.toFixed(1)}%` : '—'}</small>
+        </div>
+      </div>
+
+      {/* SuperTrend / Donchian states */}
+      <div className="tech-row tech-row-states">
+        <div className="state-chip">
+          <small>SuperTrend</small>
+          <strong className={tech.supertrend === 'up' ? 'pos' : 'neg'}>
+            {tech.supertrend === 'up' ? '↗ Up' : '↘ Down'}
+          </strong>
+        </div>
+        <div className="state-chip">
+          <small>Donchian (20)</small>
+          <strong className={tech.donchian === 'up' ? 'pos' : tech.donchian === 'down' ? 'neg' : ''}>
+            {tech.donchian === 'up' ? '↗ Breakout' : tech.donchian === 'down' ? '↘ Breakdown' : '↔ Range'}
+          </strong>
+        </div>
+        <div className="state-chip">
+          <small>Sinais bullish</small>
+          <strong>{tech.bull_signals} / 4</strong>
+        </div>
+      </div>
+
+      {/* Swing Pivots — Suportes e Resistências */}
+      {(tech.swing_lows.length > 0 || tech.swing_highs.length > 0) && (
+        <div className="tech-row tech-row-pivots">
+          <div className="pivot-side">
+            <small>Resistências (swing highs)</small>
+            <ul className="pivot-list">
+              {tech.swing_highs.map((p, i) => {
+                const dist = ((p - currentPrice) / currentPrice) * 100
+                return (
+                  <li key={`h-${i}`} className="pivot-item resist">
+                    <strong>{usd.format(p)}</strong>
+                    <span className={dist >= 0 ? 'pos' : 'neg'}>
+                      {dist >= 0 ? '+' : ''}{dist.toFixed(1)}%
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+          <div className="pivot-divider" />
+          <div className="pivot-side">
+            <small>Suportes (swing lows)</small>
+            <ul className="pivot-list">
+              {tech.swing_lows.map((p, i) => {
+                const dist = ((p - currentPrice) / currentPrice) * 100
+                return (
+                  <li key={`l-${i}`} className="pivot-item support">
+                    <strong>{usd.format(p)}</strong>
+                    <span className={dist >= 0 ? 'pos' : 'neg'}>
+                      {dist >= 0 ? '+' : ''}{dist.toFixed(1)}%
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Tooltip customizado do gráfico ────────────────────────────────────────────
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null
@@ -288,6 +436,7 @@ export function AssetPage() {
               <span className={asset.change_7d != null ? (asset.change_7d >= 0 ? 'pos' : 'neg') : ''}>
                 {pct(asset.change_7d)} 7d
               </span>
+              <TrendBadge tech={asset.technical} />
             </div>
             {asset.description && (
               <p className="asset-desc">{asset.description}</p>
@@ -368,6 +517,21 @@ export function AssetPage() {
           </AreaChart>
         </ResponsiveContainer>
       </section>
+
+      {/* Análise técnica */}
+      {asset.technical && (
+        <section className="card">
+          <div className="section-head">
+            <div>
+              <h2>Análise técnica</h2>
+              <small style={{ color: '#8da2c0' }}>
+                Indicadores e níveis-chave a 90 dias · CoinGecko (apenas close)
+              </small>
+            </div>
+          </div>
+          <TechnicalPanel tech={asset.technical} currentPrice={asset.price ?? 0} />
+        </section>
+      )}
 
       {/* Score breakdown + ATH/ATL */}
       <div className="grid2">

@@ -171,6 +171,7 @@ export interface AssetDetail extends CryptoAsset {
   community: Community
   links: AssetLinks
   tvl: TvlData | null
+  technical: Technical | null
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -180,4 +181,22 @@ export interface SearchResult {
   name: string
   thumb: string | null
   market_cap_rank: number | null
+}
+
+// ── Technical Analysis ────────────────────────────────────────────────────────
+export interface Technical {
+  trend: 'uptrend' | 'downtrend' | 'range'
+  rsi: number | null
+  rsi_zone: 'oversold' | 'neutral' | 'overbought'
+  adx: number | null
+  adx_strength: 'weak' | 'moderate' | 'strong'
+  di_plus: number | null
+  di_minus: number | null
+  bb_width: number | null
+  bb_position: number | null     // 0..100, posição entre lower e upper band
+  supertrend: 'up' | 'down'
+  donchian: 'up' | 'down' | 'flat'
+  swing_lows: number[]
+  swing_highs: number[]
+  bull_signals: number           // 0-4
 }
