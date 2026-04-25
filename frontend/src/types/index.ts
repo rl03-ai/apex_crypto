@@ -62,7 +62,8 @@ export interface WatchlistEntry {
   added_at: string
 }
 
-export interface WatchlistEnriched extends WatchlistEntry, Partial<CryptoAsset> {
+export interface WatchlistEnriched extends WatchlistEntry,
+  Partial<Omit<CryptoAsset, 'id' | 'symbol' | 'name'>> {
   watchlist_id: string
 }
 

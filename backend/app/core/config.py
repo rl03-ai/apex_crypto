@@ -1,7 +1,6 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +13,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 dias
 
     database_url: str = 'sqlite:///./apex_crypto.db'
-    allowed_origins: List[str] = ['http://localhost:5173', 'http://localhost:5174']
+
+    # Mantemos como string para evitar o JSON-parsing automático do pydantic-settings.
+    # O split CSV é feito em allowed_origins_list().
+    allowed_origins: str = 'http://localhost:5173,http://localhost:5174'
 
     # CoinGecko
     coingecko_base_url: str = 'https://api.coingecko.com/api/v3'
@@ -31,12 +33,21 @@ class Settings(BaseSettings):
     alert_check_interval_minutes: int = 10
     portfolio_update_interval_minutes: int = 15
 
-    @field_validator('allowed_origins', mode='before')
-    @classmethod
-    def split_origins(cls, v: str | List[str]) -> List[str]:
-        if isinstance(v, str):
-            return [x.strip() for x in v.split(',') if x.strip()]
-        return v
+    def allowed_origins_list(self) -> List[str]:
+        """Devolve allowed_origins como lista, suportando CSV ou JSON array."""
+        v = (self.allowed_origins or '').strip()
+        if not v:
+            return []
+        # Suporta tanto formato JSON `["a","b"]` como CSV `a,b`
+        if v.startswith('['):
+            import json
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [x.strip() for x in v.split(',') if x.strip()]
 
 
 @lru_cache(maxsize=1)

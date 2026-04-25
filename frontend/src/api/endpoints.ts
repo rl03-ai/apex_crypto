@@ -1,6 +1,6 @@
 import { api, setToken } from './client'
 import type {
-  Alert, ChartPoint, CryptoAsset, FearGreed,
+  Alert, AssetDetail, ChartPoint, CryptoAsset, FearGreed,
   Portfolio, PortfolioSummary, Position,
   TokenResponse, UserOut,
   WatchlistEnriched, WatchlistEntry,
