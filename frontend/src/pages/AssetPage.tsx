@@ -67,6 +67,7 @@ function barColor(v: number): string {
 
 // ── Tokenomics Panel ──────────────────────────────────────────────────────────
 function TokenomicsPanel({ t, mcap }: { t: AssetDetail['tokenomics']; mcap: number | null }) {
+  if (!t) return <p style={{ color: '#8da2c0', padding: '12px 0' }}>Sem dados de tokenomics.</p>
   const circPct  = t.circulating_pct ?? 0
   const fdvRatio = t.fdv_ratio
 
@@ -117,6 +118,7 @@ function TokenomicsPanel({ t, mcap }: { t: AssetDetail['tokenomics']; mcap: numb
 
 // ── ATH/ATL Panel ─────────────────────────────────────────────────────────────
 function AthAtlPanel({ aa }: { aa: AssetDetail['ath_atl'] }) {
+  if (!aa) return <p style={{ color: '#8da2c0', padding: '12px 0' }}>Sem dados de ATH/ATL.</p>
   const athPct = aa.ath_change_pct ?? 0  // negativo — distância ao ATH
   const atlPct = aa.atl_change_pct ?? 0  // positivo — ganho desde ATL
 
@@ -181,6 +183,7 @@ function TvlPanel({ tvl }: { tvl: AssetDetail['tvl'] }) {
 
 // ── Community Panel ───────────────────────────────────────────────────────────
 function CommunityPanel({ c }: { c: AssetDetail['community'] }) {
+  if (!c) return null
   const items = [
     { label: 'Reddit', icon: '📡', value: c.reddit_subscribers, link: null },
     { label: 'Twitter/X', icon: '𝕏', value: c.twitter_followers, link: null },
@@ -426,7 +429,7 @@ export function AssetPage() {
         <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', gridColumn: '1' }}>
           {asset.image && <img src={asset.image} alt={asset.name} className="asset-logo" />}
           <div>
-            <p className="kicker">Rank #{asset.rank} · {asset.categories.slice(0, 2).join(' · ')}</p>
+            <p className="kicker">Rank #{asset.rank} · {(asset.categories || []).slice(0, 2).join(' · ')}</p>
             <h1>{asset.name} <span style={{ color: '#8da2c0', fontWeight: 400, fontSize: '0.6em' }}>{asset.symbol}</span></h1>
             <div className="hero-prices">
               <span className="hero-price">{asset.price != null ? usd.format(asset.price) : '—'}</span>
@@ -443,10 +446,10 @@ export function AssetPage() {
             )}
             {/* Links */}
             <div className="asset-links">
-              {asset.links.homepage   && <a href={asset.links.homepage} target="_blank" rel="noopener" className="link-chip">🌐 Website</a>}
-              {asset.links.blockchain_site && <a href={asset.links.blockchain_site} target="_blank" rel="noopener" className="link-chip">⬡ Explorer</a>}
-              {asset.links.twitter    && <a href={`https://twitter.com/${asset.links.twitter}`} target="_blank" rel="noopener" className="link-chip">𝕏 Twitter</a>}
-              {asset.links.subreddit  && <a href={asset.links.subreddit} target="_blank" rel="noopener" className="link-chip">💬 Reddit</a>}
+              {asset.links?.homepage   && <a href={asset.links.homepage} target="_blank" rel="noopener" className="link-chip">🌐 Website</a>}
+              {asset.links?.blockchain_site && <a href={asset.links.blockchain_site} target="_blank" rel="noopener" className="link-chip">⬡ Explorer</a>}
+              {asset.links?.twitter    && <a href={`https://twitter.com/${asset.links.twitter}`} target="_blank" rel="noopener" className="link-chip">𝕏 Twitter</a>}
+              {asset.links?.subreddit  && <a href={asset.links.subreddit} target="_blank" rel="noopener" className="link-chip">💬 Reddit</a>}
             </div>
           </div>
         </div>
