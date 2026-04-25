@@ -42,8 +42,16 @@ DEMO_MARKETS = [
 
 def _headers() -> dict[str, str]:
     h: dict[str, str] = {}
-    if settings.coingecko_api_key:
-        h['x-cg-pro-api-key'] = settings.coingecko_api_key
+    key = settings.coingecko_api_key
+    if not key:
+        return h
+    # Keys que começam com 'CG-' são tipicamente do tier demo (free).
+    # As Pro têm formato diferente.
+    # Para evitar adivinhação, podes definir COINGECKO_API_TIER=pro|demo no .env.
+    if key.startswith('CG-'):
+        h['x-cg-demo-api-key'] = key
+    else:
+        h['x-cg-pro-api-key'] = key
     return h
 
 
@@ -64,7 +72,7 @@ async def fetch_markets(limit: int = 80, page: int = 1) -> list[dict]:
         'price_change_percentage': '7d,30d',
     }
     try:
-        async with httpx.AsyncClient(timeout=10, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/markets', params=params)
             r.raise_for_status()
             data = r.json()
@@ -93,7 +101,7 @@ async def fetch_markets_by_ids(coin_ids: list[str]) -> list[dict]:
         'price_change_percentage': '7d,30d',
     }
     try:
-        async with httpx.AsyncClient(timeout=10, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/markets', params=params)
             r.raise_for_status()
             data = r.json()
@@ -113,7 +121,7 @@ async def fetch_coin_detail(coin_id: str) -> dict:
         'developer_data': 'false',
     }
     try:
-        async with httpx.AsyncClient(timeout=10, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/{coin_id}', params=params)
             r.raise_for_status()
             return r.json()
@@ -124,7 +132,7 @@ async def fetch_coin_detail(coin_id: str) -> dict:
 async def fetch_chart(coin_id: str, days: int = 90) -> list[dict]:
     """Série temporal de preços para gráfico."""
     try:
-        async with httpx.AsyncClient(timeout=10, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
             r = await client.get(
                 f'{BASE}/coins/{coin_id}/market_chart',
                 params={'vs_currency': 'usd', 'days': days},
