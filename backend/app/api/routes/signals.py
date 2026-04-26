@@ -50,26 +50,38 @@ async def analyse_coin(coin_id: str, current_user: CurrentUser,
     from app.services.coingecko import fetch_coin_detail
     from app.services.instdash import analyse_symbol
 
-    # Estratégia 1: tratar input directo se for já BTCUSDT
-    if coin_id.upper().endswith('USDT'):
-        symbol = coin_id.upper()
-    else:
-        # Estratégia 2: resolver via CoinGecko symbol → Binance pair
-        # Vamos buscar o symbol oficial à CoinGecko
-        detail = await fetch_coin_detail(coin_id)
-        cg_symbol = (detail.get('symbol') or '').upper() if detail else None
-        symbol = await resolve_binance_symbol(coin_id, fallback_symbol=cg_symbol)
+    try:
+        # Estratégia 1: tratar input directo se for já BTCUSDT
+        if coin_id.upper().endswith('USDT'):
+            symbol = coin_id.upper()
+        else:
+            # Estratégia 2: resolver via CoinGecko symbol → Binance pair
+            detail = await fetch_coin_detail(coin_id)
+            cg_symbol = (detail.get('symbol') or '').upper() if detail else None
+            symbol = await resolve_binance_symbol(coin_id, fallback_symbol=cg_symbol)
 
-    if not symbol:
-        raise HTTPException(
-            404,
-            f'{coin_id!r} não está disponível na Binance. O InstDash usa Binance OHLCV.',
-        )
+        if not symbol:
+            raise HTTPException(
+                404,
+                f'{coin_id!r} não está disponível na Binance. O InstDash usa apenas pares Binance USDT.',
+            )
 
-    result = await analyse_symbol(symbol, interval=interval, htf_interval=htf)
-    if not result:
+        result = await analyse_symbol(symbol, interval=interval, htf_interval=htf)
+        if not result:
+            raise HTTPException(
+                503,
+                f'Sem dados InstDash para {symbol}. Possíveis causas: histórico insuficiente, moeda não listada na Binance, ou rate-limit. Tenta de novo em 1 minuto.',
+            )
+        return result
+
+    except HTTPException:
+        # HTTPExceptions já têm status code apropriado — propaga
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception('analyse_coin %s falhou: %s', coin_id, e)
         raise HTTPException(
-            503,
-            f'Sem dados InstDash para {symbol}. Pode ser histórico insuficiente, rate-limit ou bloqueio geográfico do servidor (verifica /debug/binance-test).',
+            500,
+            f'Erro interno ao analisar {coin_id!r}. Detalhes nos logs do servidor.',
         )
-    return result

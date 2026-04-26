@@ -222,12 +222,12 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         'last_close_at': df.index[-1].isoformat(),
 
         # Preço
-        'price': state['close'],
+        'price': float(state['close']),
         'change_24h_pct': round((float(close.iloc[-1]) / float(close.iloc[-2]) - 1) * 100, 2) if len(close) >= 2 else 0.0,
 
         # Indicadores
         'rsi': round(state['rsi'], 1),
-        'macd_bullish': state['macd_v'] > state['signal_v'],
+        'macd_bullish': bool(state['macd_v'] > state['signal_v']),
         'atr_pct': round(float(atr_pct.iloc[-1]), 2),
         'adx': round(float(adx_v.iloc[-1]), 1) if not pd.isna(adx_v.iloc[-1]) else None,
         'di_plus': round(float(pdi_v.iloc[-1]), 1) if not pd.isna(pdi_v.iloc[-1]) else None,
@@ -238,8 +238,8 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         # Trends
         'ltf_trend': ltf_trend_str,
         'htf_trend': htf_trend_str,
-        'aligned_bull': state['aligned_bull'],
-        'aligned_bear': state['aligned_bear'],
+        'aligned_bull': bool(state['aligned_bull']),
+        'aligned_bear': bool(state['aligned_bear']),
 
         # Score
         'score': score_data['score'],
@@ -259,13 +259,13 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         'bb_basis': state['bb_basis'],
         'bb_upper': round(float(bb_up.iloc[-1]), 6),
         'bb_lower': round(float(bb_dn.iloc[-1]), 6),
-        'squeeze':  state['squeeze'],
+        'squeeze': bool(state['squeeze']),
 
         # VWAP
-        'vwap':         round(float(vwap.iloc[-1]), 6) if not pd.isna(vwap.iloc[-1]) else None,
-        'above_vwap':   state['above_vwap'],
-        'vwap_ext_up':  state['vwap_ext_up'],
-        'vwap_ext_dn':  state['vwap_ext_dn'],
+        'vwap': round(float(vwap.iloc[-1]), 6) if not pd.isna(vwap.iloc[-1]) else None,
+        'above_vwap': bool(state['above_vwap']),
+        'vwap_ext_up': bool(state['vwap_ext_up']),
+        'vwap_ext_dn': bool(state['vwap_ext_dn']),
 
         # Estrutura
         'structure': structure,
