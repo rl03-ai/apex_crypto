@@ -5,12 +5,15 @@ Tem fallback demo para desenvolvimento offline.
 """
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from app.core.config import get_settings
 
 settings = get_settings()
 BASE = settings.coingecko_base_url
+log = logging.getLogger(__name__)
 
 DEMO_MARKETS = [
     {'id': 'bitcoin', 'symbol': 'btc', 'name': 'Bitcoin', 'image': '', 'current_price': 64000,
@@ -121,11 +124,17 @@ async def fetch_coin_detail(coin_id: str) -> dict:
         'developer_data': 'false',
     }
     try:
-        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=25, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/{coin_id}', params=params)
             r.raise_for_status()
             return r.json()
-    except Exception:
+    except httpx.HTTPStatusError as e:
+        log.warning('CoinGecko detail %s falhou: status %s — %s',
+                    coin_id, e.response.status_code, e.response.text[:200])
+        return {}
+    except Exception as e:
+        log.warning('CoinGecko detail %s falhou: %s — %s',
+                    coin_id, type(e).__name__, str(e)[:200])
         return {}
 
 

@@ -161,6 +161,29 @@ async def fetch_klines(symbol: str, interval: str = '1d', limit: int = 300) -> O
     return df
 
 
+async def resolve_binance_symbol(coin_id: str, fallback_symbol: str | None = None) -> Optional[str]:
+    """Resolve coin_id da CoinGecko para par USDT da Binance.
+
+    Estratégia:
+      1. Mapa hardcoded para as ~60 mais comuns (rápido, sem latência).
+      2. Tentar fallback_symbol (vindo do CoinGecko detail) — ex 'ZEC' → 'ZECUSDT'.
+      3. Verificar se está na lista de pares activos.
+    """
+    # 1. Mapa hardcoded
+    sym = coingecko_id_to_binance_symbol(coin_id)
+    if sym:
+        return sym
+
+    # 2. Tentar fallback_symbol
+    if fallback_symbol:
+        candidate = f'{fallback_symbol.upper()}USDT'
+        active = await list_active_symbols()
+        if any(a['symbol'] == candidate for a in active):
+            return candidate
+
+    return None
+
+
 def coingecko_id_to_binance_symbol(coin_id: str) -> Optional[str]:
     """Mapeia coin_id do CoinGecko (ex: 'bitcoin') para par Binance USDT (ex: 'BTCUSDT').
 

@@ -157,7 +157,9 @@ async def asset_detail_full(coin_id: str) -> dict:
         chart_pts = []
 
     if not detail:
-        raise HTTPException(404, f'Moeda {coin_id!r} não encontrada')
+        # detail vazio = falha na chamada CoinGecko (rate limit, timeout, etc).
+        # Devolvemos 503 em vez de 404 enganoso. Causa real está nos logs.
+        raise HTTPException(503, f'Falha ao consultar dados de {coin_id!r}. Possível rate limit do CoinGecko ou cold start. Tenta de novo em 30s.')
 
     md = detail.get('market_data') or {}
 

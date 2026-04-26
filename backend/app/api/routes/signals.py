@@ -46,18 +46,30 @@ async def analyse_coin(coin_id: str, current_user: CurrentUser,
 
     Não persiste sinais — só devolve a análise actual.
     """
-    from app.services.binance import coingecko_id_to_binance_symbol
+    from app.services.binance import resolve_binance_symbol
+    from app.services.coingecko import fetch_coin_detail
     from app.services.instdash import analyse_symbol
 
-    symbol = coingecko_id_to_binance_symbol(coin_id)
+    # Estratégia 1: tratar input directo se for já BTCUSDT
+    if coin_id.upper().endswith('USDT'):
+        symbol = coin_id.upper()
+    else:
+        # Estratégia 2: resolver via CoinGecko symbol → Binance pair
+        # Vamos buscar o symbol oficial à CoinGecko
+        detail = await fetch_coin_detail(coin_id)
+        cg_symbol = (detail.get('symbol') or '').upper() if detail else None
+        symbol = await resolve_binance_symbol(coin_id, fallback_symbol=cg_symbol)
+
     if not symbol:
-        # Tentar como símbolo Binance directo (ex: 'BTCUSDT')
-        if coin_id.upper().endswith('USDT'):
-            symbol = coin_id.upper()
-        else:
-            symbol = f'{coin_id.upper()}USDT'
+        raise HTTPException(
+            404,
+            f'{coin_id!r} não está disponível na Binance. O InstDash usa Binance OHLCV.',
+        )
 
     result = await analyse_symbol(symbol, interval=interval, htf_interval=htf)
     if not result:
-        raise HTTPException(404, f'Sem dados InstDash para {symbol}. Pode não estar listado na Binance ou ter pouco histórico.')
+        raise HTTPException(
+            503,
+            f'Sem dados InstDash para {symbol}. Pode ser histórico insuficiente, rate-limit ou bloqueio geográfico do servidor (verifica /debug/binance-test).',
+        )
     return result
