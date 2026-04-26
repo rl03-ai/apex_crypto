@@ -7,9 +7,11 @@ import {
 import {
   fetchDetail, fetchChart,
   fetchWatchlist, addToWatchlist, removeFromWatchlist,
+  fetchInstDash,
 } from '../api/endpoints'
-import type { AssetDetail, ChartPoint, WatchlistEntry } from '../types'
+import type { AssetDetail, ChartPoint, InstDashAnalysis, WatchlistEntry } from '../types'
 import { ScoreBar } from '../components/ScoreBar'
+import { InstDashPanel } from '../components/InstDashPanel'
 
 // ── formatadores ──────────────────────────────────────────────────────────────
 const usd     = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
@@ -376,14 +378,24 @@ export function AssetPage() {
   const [err,      setErr]      = useState('')
   const [wlEntry,  setWlEntry]  = useState<WatchlistEntry | null>(null)
   const [wlBusy,   setWlBusy]   = useState(false)
+  const [instdash, setInstdash] = useState<InstDashAnalysis | null>(null)
+  const [instLoading, setInstLoading] = useState(false)
+  const [instErr,  setInstErr]  = useState('')
 
   useEffect(() => {
     setLoading(true); setErr('')
+    setInstLoading(true); setInstErr('')
     Promise.all([
       fetchDetail(id).then(setAsset).catch(() => setErr('Ativo não encontrado ou erro de rede')),
       fetchChart(id, days).then(setChart).catch(() => setChart([])),
       fetchWatchlist().then(wl => setWlEntry(wl.find(e => e.coin_id === id) || null)).catch(() => {}),
     ]).finally(() => setLoading(false))
+
+    // InstDash em paralelo (não bloqueia loading principal)
+    fetchInstDash(id, '1d')
+      .then(setInstdash)
+      .catch(() => setInstErr('InstDash indisponível para esta moeda (não está listada na Binance ou histórico insuficiente).'))
+      .finally(() => setInstLoading(false))
   }, [id, days])
 
   async function toggleWatchlist() {
@@ -472,6 +484,19 @@ export function AssetPage() {
           {asset.tvl && <TvlPanel tvl={asset.tvl} />}
         </div>
       </section>
+
+      {/* InstDash — análise institucional completa */}
+      {instLoading && <div className="card loading-card">A correr motor InstDash...</div>}
+      {!instLoading && instdash && (
+        <section className="card">
+          <InstDashPanel data={instdash} />
+        </section>
+      )}
+      {!instLoading && !instdash && instErr && (
+        <div className="card" style={{ padding: 14, color: '#8da2c0', fontSize: 13 }}>
+          ℹ {instErr}
+        </div>
+      )}
 
       {/* Métricas de market */}
       <div className="market-metrics">

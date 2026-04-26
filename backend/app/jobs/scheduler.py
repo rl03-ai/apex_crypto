@@ -71,6 +71,17 @@ def start_scheduler() -> None:
     )
     log.info('Job "cleanup_alerts" registado: diariamente às 02:00 UTC.')
 
+    # ── Job 4: scan InstDash (entradas + saídas) ──────────────────────────────
+    from app.jobs.scan_instdash import run as run_scan_instdash
+    _scheduler.add_job(
+        run_scan_instdash,
+        trigger=CronTrigger(hour='0,4,8,12,16,20', minute=30),  # cada 4h às :30
+        id='scan_instdash',
+        name='Scan InstDash (entradas e saídas)',
+        replace_existing=True,
+    )
+    log.info('Job "scan_instdash" registado: cada 4 horas às :30 (UTC).')
+
     _scheduler.start()
     log.info('Scheduler iniciado com %d jobs.', len(_scheduler.get_jobs()))
 

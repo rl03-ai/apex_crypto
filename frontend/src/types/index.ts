@@ -200,3 +200,133 @@ export interface Technical {
   swing_highs: number[]
   bull_signals: number           // 0-4
 }
+
+// ── InstDash analysis ─────────────────────────────────────────────────────────
+export interface InstDashStructure {
+  last_hh: number | null
+  prev_hh: number | null
+  last_ll: number | null
+  prev_ll: number | null
+  choch_bull: boolean
+  choch_bear: boolean
+  bos_bull: boolean
+  bos_bear: boolean
+  struct_bias: number   // -1, 0, 1
+  last_event: string
+  event_bars_ago: number | null
+}
+
+export interface InstDashFvg {
+  bull_top: number | null
+  bull_bot: number | null
+  bear_top: number | null
+  bear_bot: number | null
+  in_bull_fvg: boolean
+  in_bear_fvg: boolean
+}
+
+export interface InstDashOb {
+  bull_top: number | null
+  bull_bot: number | null
+  bear_top: number | null
+  bear_bot: number | null
+  in_bull_ob: boolean
+  in_bear_ob: boolean
+}
+
+export interface InstDashLiq {
+  sweep_high: boolean
+  sweep_low: boolean
+  liq_high: number | null
+  liq_low: number | null
+  near_liq_high: boolean
+  near_liq_low: boolean
+}
+
+export interface InstDashSr {
+  res_top: number | null; res_mid: number | null; res_bot: number | null
+  sup_top: number | null; sup_mid: number | null; sup_bot: number | null
+  dist_to_res_pct: number | null
+  dist_to_sup_pct: number | null
+  near_res: boolean
+  near_sup: boolean
+}
+
+export interface InstDashVp {
+  poc: number | null
+  vah: number | null
+  val: number | null
+  above_poc: boolean
+  in_value_area: boolean
+  above_value_area: boolean
+  below_value_area: boolean
+}
+
+export interface InstDashAnalysis {
+  symbol: string
+  interval: string
+  htf_interval: string
+  last_close_at: string
+
+  price: number
+  change_24h_pct: number
+
+  rsi: number
+  macd_bullish: boolean
+  atr_pct: number
+  adx: number | null
+  di_plus: number | null
+  di_minus: number | null
+  vol_ratio: number
+  delta_volume: number
+
+  ltf_trend: string
+  htf_trend: string
+  aligned_bull: boolean
+  aligned_bear: boolean
+
+  score: number
+  score_pct: number
+  signal: string
+  factors: Record<string, number>
+
+  setup_quality: string
+  setup_blocked_by: string
+  sl_long: number; tp_long: number
+  sl_short: number; tp_short: number
+
+  bb_basis: number; bb_upper: number; bb_lower: number
+  squeeze: boolean
+
+  vwap: number | null
+  above_vwap: boolean
+  vwap_ext_up: boolean
+  vwap_ext_dn: boolean
+
+  structure: InstDashStructure
+  fvg: InstDashFvg
+  order_block: InstDashOb
+  liquidity: InstDashLiq
+  support_resistance: InstDashSr
+  volume_profile: InstDashVp
+}
+
+// ── Signal ────────────────────────────────────────────────────────────────────
+export interface Signal {
+  id: string
+  symbol: string
+  coin_id: string | null
+  interval: string
+  direction: 'long' | 'short' | 'exit' | string
+  setup_type: string
+  score: number
+  signal_label: string
+  price: number
+  sl: number | null
+  tp: number | null
+  title: string
+  description: string
+  is_active: boolean
+  detected_at: string
+  expires_at: string | null
+}

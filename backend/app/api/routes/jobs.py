@@ -55,6 +55,14 @@ def trigger_cleanup(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
     return {'message': 'Job cleanup_alerts iniciado em background.'}
 
 
+@router.post('/run/scan-instdash')
+def trigger_scan_instdash(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
+    """Dispara o scan InstDash (análise + sinais) em background."""
+    from app.jobs.scan_instdash import run
+    bg.add_task(_run_and_log, 'scan_instdash', run)
+    return {'message': 'Job scan_instdash iniciado em background. Pode demorar 1-2 min.'}
+
+
 def _run_and_log(name: str, fn) -> None:
     try:
         result = fn()

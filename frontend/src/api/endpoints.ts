@@ -1,6 +1,7 @@
 import { api, setToken } from './client'
 import type {
   Alert, AssetDetail, ChartPoint, CryptoAsset, FearGreed,
+  InstDashAnalysis, Signal,
   Portfolio, PortfolioSummary, Position,
   SearchResult,
   TokenResponse, UserOut,
@@ -61,3 +62,21 @@ export const fetchAlerts    = (all = false) => api.get<Alert[]>(`/alerts${all ? 
 export const markRead       = (id: string)  => api.post<Alert>(`/alerts/${id}/read`)
 export const markAllRead    = ()            => api.post<unknown>('/alerts/read-all')
 export const deleteAlert    = (id: string)  => api.delete<void>(`/alerts/${id}`)
+
+// ── InstDash / Signals ────────────────────────────────────────────────────────
+export const fetchInstDash = (coinId: string, interval = '1d') =>
+  api.get<InstDashAnalysis>(`/signals/coin/${coinId}?interval=${interval}`)
+
+export const fetchSignals = (params: {
+  direction?: 'long' | 'short' | 'exit'
+  min_score?: number
+  interval?: string
+} = {}) => {
+  const qs = new URLSearchParams()
+  if (params.direction)  qs.set('direction',  params.direction)
+  if (params.min_score) qs.set('min_score', String(params.min_score))
+  if (params.interval)  qs.set('interval',  params.interval)
+  return api.get<Signal[]>(`/signals?${qs.toString()}`)
+}
+
+export const triggerScanInstDash = () => api.post<{ message: string }>('/jobs/run/scan-instdash')
