@@ -172,7 +172,7 @@ async def resolve_binance_symbol(coin_id: str, fallback_symbol: str | None = Non
     Estratégia:
       1. Mapa hardcoded para as ~60 mais comuns (rápido, sem latência).
       2. Tentar fallback_symbol (vindo do CoinGecko detail) — ex 'ZEC' → 'ZECUSDT'.
-      3. Verificar se está na lista de pares activos.
+      3. Verificar se está na lista de pares activos (com fallback se falhar).
     """
     # 1. Mapa hardcoded
     sym = coingecko_id_to_binance_symbol(coin_id)
@@ -182,8 +182,17 @@ async def resolve_binance_symbol(coin_id: str, fallback_symbol: str | None = Non
     # 2. Tentar fallback_symbol
     if fallback_symbol:
         candidate = f'{fallback_symbol.upper()}USDT'
-        active = await list_active_symbols()
-        if any(a['symbol'] == candidate for a in active):
+        try:
+            active = await list_active_symbols()
+            if any(a['symbol'] == candidate for a in active):
+                return candidate
+        except Exception as e:
+            # Se a chamada a list_active_symbols falha, mas temos fallback_symbol,
+            # tentamos mesmo assim o candidate (pode estar lá, só não conseguimos validar)
+            log.debug('resolve_binance_symbol: list_active_symbols falhou para %s — %s',
+                     coin_id, e)
+            # Devolver o candidate mesmo assim — melhor tentar que nada
+            # (o analyse_symbol vai devolver None se realmente não existir)
             return candidate
 
     return None
