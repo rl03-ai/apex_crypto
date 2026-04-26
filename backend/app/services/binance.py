@@ -20,7 +20,12 @@ from app.services.cache import TTLCache
 
 log = logging.getLogger(__name__)
 
-BASE = 'https://api.binance.com'
+# data-api.binance.vision — subdomínio oficial Binance para read-only data.
+# Sem geo-block (não sujeito a restrições dos EUA como api.binance.com).
+# Mesmos endpoints, pares, schema que o principal.
+# Recomendado pela Binance para uso programático internacional.
+# Docs: https://github.com/binance/binance-spot-api-docs
+BASE = 'https://data-api.binance.vision'
 
 # Stablecoins (não devem ser scanned como activos para trade)
 STABLECOINS = {
