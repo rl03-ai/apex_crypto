@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Cachebust — alterar este timestamp força rebuild quando o conteúdo do src muda
-ARG CACHEBUST=2026-04-26-v15-numpy-bool-fix
+ARG CACHEBUST=2026-04-26-v16-instdash-public
 RUN echo "Build cachebust: $CACHEBUST"
 
 COPY package*.json ./

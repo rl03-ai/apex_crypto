@@ -39,7 +39,7 @@ def list_signals(
 
 
 @router.get('/coin/{coin_id}')
-async def analyse_coin(coin_id: str, current_user: CurrentUser,
+async def analyse_coin(coin_id: str,
                         interval: str = Query('1d', description='1d | 4h | 1w'),
                         htf: str = Query('1w')) -> dict:
     """Análise on-demand do InstDash para uma moeda específica.
