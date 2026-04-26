@@ -41,8 +41,11 @@ async def _test(url: str) -> dict:
 
 
 @router.get('/binance-test')
-async def binance_test(current_user: CurrentUser) -> dict:
-    """Testa múltiplos endpoints Binance para descobrir qual funciona daqui."""
+async def binance_test() -> dict:
+    """Testa múltiplos endpoints Binance para descobrir qual funciona daqui.
+    
+    Endpoint público (sem auth) para diagnosticar bloqueios de IP do servidor Render.
+    """
     endpoints = [
         # Primário: api.binance.com (sabemos que falha em IPs US com 451)
         'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=2',

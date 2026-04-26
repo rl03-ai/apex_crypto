@@ -47,10 +47,12 @@ def _headers() -> dict[str, str]:
     h: dict[str, str] = {}
     key = settings.coingecko_api_key
     if not key:
+        # Sem chave — CoinGecko agora exige até para endpoints públicos
+        # Log uma vez para diagnosticar. Vai pedir upgrade ou usar fallback.
+        log.warning('CoinGecko API key não configurada. Endpoints podem devolver 401.')
         return h
     # Keys que começam com 'CG-' são tipicamente do tier demo (free).
     # As Pro têm formato diferente.
-    # Para evitar adivinhação, podes definir COINGECKO_API_TIER=pro|demo no .env.
     if key.startswith('CG-'):
         h['x-cg-demo-api-key'] = key
     else:
@@ -59,7 +61,10 @@ def _headers() -> dict[str, str]:
 
 
 async def fetch_markets(limit: int = 80, page: int = 1) -> list[dict]:
-    """Top N moedas ordenadas por market cap. Resultado cacheado 90 s."""
+    """Top N moedas ordenadas por market cap. Resultado cacheado 90 s.
+    
+    Se CoinGecko falhar (401 sem chave, 429 rate limit), fallback para DEMO_MARKETS.
+    """
     from app.services.cache import markets_cache
     cache_key = f'markets:{limit}:{page}'
     cached = markets_cache.get(cache_key)
@@ -75,14 +80,25 @@ async def fetch_markets(limit: int = 80, page: int = 1) -> list[dict]:
         'price_change_percentage': '7d,30d',
     }
     try:
-        async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=30, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/markets', params=params)
             r.raise_for_status()
             data = r.json()
             markets_cache.set(cache_key, data)
             return data
-    except Exception:
-        return DEMO_MARKETS
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            log.warning('CoinGecko 401: API key não configurada. Usando DEMO_MARKETS. '
+                       'Para corrigir: Render → apex-crypto-api → Environment → COINGECKO_API_KEY = (a tua chave)')
+        elif e.response.status_code == 429:
+            log.warning('CoinGecko 429: Rate limit atingido. Usando DEMO_MARKETS. '
+                       'Aguarda 1 minuto ou upgrade a Pro.')
+        else:
+            log.warning('CoinGecko error %s: %s', e.response.status_code, e.response.text[:100])
+        return DEMO_MARKETS[:limit]
+    except Exception as e:
+        log.warning('CoinGecko exception: %s — %s', type(e).__name__, str(e)[:100])
+        return DEMO_MARKETS[:limit]
 
 
 async def fetch_markets_by_ids(coin_ids: list[str]) -> list[dict]:
@@ -115,7 +131,11 @@ async def fetch_markets_by_ids(coin_ids: list[str]) -> list[dict]:
 
 
 async def fetch_coin_detail(coin_id: str) -> dict:
-    """Dados completos de uma moeda (inclui tokenomics, links, etc.)."""
+    """Dados completos de uma moeda (inclui tokenomics, links, etc.).
+    
+    Retorna {} se CoinGecko falhar (rate limit, sem key, etc).
+    O endpoint /detail/{id} vai devolver 503 com msg clara.
+    """
     params = {
         'localization': 'false',
         'tickers': 'false',
@@ -124,17 +144,22 @@ async def fetch_coin_detail(coin_id: str) -> dict:
         'developer_data': 'false',
     }
     try:
-        async with httpx.AsyncClient(timeout=25, headers=_headers()) as client:
+        async with httpx.AsyncClient(timeout=30, headers=_headers()) as client:
             r = await client.get(f'{BASE}/coins/{coin_id}', params=params)
             r.raise_for_status()
             return r.json()
     except httpx.HTTPStatusError as e:
-        log.warning('CoinGecko detail %s falhou: status %s — %s',
-                    coin_id, e.response.status_code, e.response.text[:200])
+        if e.response.status_code == 401:
+            log.warning('CoinGecko detail %s 401: API key missing', coin_id)
+        elif e.response.status_code == 429:
+            log.warning('CoinGecko detail %s 429: Rate limit', coin_id)
+        else:
+            log.warning('CoinGecko detail %s falhou: status %s — %s',
+                        coin_id, e.response.status_code, e.response.text[:100])
         return {}
     except Exception as e:
-        log.warning('CoinGecko detail %s falhou: %s — %s',
-                    coin_id, type(e).__name__, str(e)[:200])
+        log.warning('CoinGecko detail %s exception: %s — %s',
+                    coin_id, type(e).__name__, str(e)[:100])
         return {}
 
 
