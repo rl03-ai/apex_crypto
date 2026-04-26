@@ -215,7 +215,18 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
     setup = compute_setup_quality(state, score_data)
 
     # ── Output ───────────────────────────────────────────────────────────────
-    return {
+    # Helper recursivo para converter qualquer numpy type → Python nativo
+    # Aplica-se a dicts/lists aninhados (ex: structure, fvg, order_block, etc.)
+    def deep_to_py(obj):
+        if isinstance(obj, dict):
+            return {k: deep_to_py(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [deep_to_py(v) for v in obj]
+        if isinstance(obj, (np.bool_, np.integer, np.floating)):
+            return obj.item()
+        return obj
+
+    output = {
         'symbol': symbol,
         'interval': interval,
         'htf_interval': htf_interval,
@@ -279,3 +290,6 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         # Volume profile
         'volume_profile': vp,
     }
+
+    # Converter recursivamente todos os numpy types antes de devolver
+    return deep_to_py(output)
