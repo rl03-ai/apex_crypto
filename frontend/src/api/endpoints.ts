@@ -117,3 +117,65 @@ export const fetchWhales = () =>
 
 export const fetchWhaleSymbol = (symbol: string) =>
   api.get<WhaleMetric>(`/whales/${symbol}`)
+
+// ── Decision Matrix ───────────────────────────────────────────────────────────
+export interface MatrixRow {
+  symbol: string
+  coin_id: string | null
+  price: number
+  change_24h: number
+  instdash: {
+    score: number
+    score_norm: number
+    signal: string
+    rsi: number | null
+    adx: number | null
+    ltf_trend: string | null
+    htf_trend: string | null
+    setup_quality: string | null
+    aligned: boolean | null
+    sl_long: number | null
+    tp_long: number | null
+    sl_short: number | null
+    tp_short: number | null
+  }
+  whale: {
+    score: number
+    signal: string
+    description: string | null
+    oi_24h: number | null
+    oi_7d: number | null
+    funding: number | null
+    funding_apr: number | null
+    lsr: number | null
+    lsr_change: number | null
+  } | null
+  composite: number
+  tier: 'S' | 'A' | 'B' | 'C' | 'D'
+  action: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG SELL'
+  timestamp: number
+}
+
+export interface MatrixResponse {
+  count: number
+  stats: {
+    bullish: number
+    bearish: number
+    tier_s: number
+    tier_a: number
+  }
+  data: MatrixRow[]
+  timestamp: number
+}
+
+export const fetchMatrix = (params: {
+  min_tier?: string
+  action?: string
+  direction?: 'long' | 'short'
+} = {}) => {
+  const qs = new URLSearchParams()
+  if (params.min_tier) qs.set('min_tier', params.min_tier)
+  if (params.action) qs.set('action', params.action)
+  if (params.direction) qs.set('direction', params.direction)
+  return api.get<MatrixResponse>(`/matrix?${qs.toString()}`)
+}

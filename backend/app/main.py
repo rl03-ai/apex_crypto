@@ -9,6 +9,7 @@ from app.api.routes import auth, alerts, crypto, debug, health, market, portfoli
 from app.api.routes import jobs as jobs_router
 from app.api.routes import signals as signals_router
 from app.api.routes import whales as whales_router
+from app.api.routes import decision_matrix as matrix_router
 from app.core.config import get_settings
 from app.core.database import Base, engine
 
@@ -70,6 +71,7 @@ app.include_router(alerts.router,     prefix='/alerts',      tags=['alerts'])
 app.include_router(jobs_router.router, prefix='/jobs',       tags=['jobs'])
 app.include_router(signals_router.router, prefix='/signals', tags=['signals'])
 app.include_router(whales_router.router,  tags=['whales'])
+app.include_router(matrix_router.router,  tags=['matrix'])
 app.include_router(debug.router,      prefix='/debug',       tags=['debug'])
 
 
