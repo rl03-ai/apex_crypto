@@ -1,39 +1,18 @@
-import React, { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, Activity, AlertCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Activity, AlertCircle } from 'lucide-react'
+import { fetchWhales, type WhaleMetric } from '../api/endpoints'
 
-interface WhaleMetric {
-  symbol: string
-  metrics: {
-    oi: {
-      oi_current_usd: number
-      oi_24h_change_pct: number
-      oi_7d_change_pct: number
-    } | null
-    liq: {
-      total_liquidated_usd: number
-      longs_pct: number
-      shorts_pct: number
-    } | null
-  }
-  whale_score: {
-    score: number
-    signal: 'whale_bull' | 'whale_bear' | 'whale_neutral'
-    description: string
-  }
-}
-
-export default function WhalesPage() {
+export function WhalesPage() {
   const [whales, setWhales] = useState<WhaleMetric[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchWhales = async () => {
+  const load = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/whales')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      setWhales(data.data || [])
+      setError(null)
+      const res = await fetchWhales()
+      setWhales(res.data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -42,8 +21,8 @@ export default function WhalesPage() {
   }
 
   useEffect(() => {
-    fetchWhales()
-    const interval = setInterval(fetchWhales, 5 * 60 * 1000) // 5min
+    load()
+    const interval = setInterval(load, 5 * 60 * 1000) // 5min
     return () => clearInterval(interval)
   }, [])
 
@@ -76,7 +55,7 @@ export default function WhalesPage() {
         {/* Actions */}
         <div className="mb-6 flex gap-3">
           <button
-            onClick={fetchWhales}
+            onClick={load}
             disabled={loading}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >

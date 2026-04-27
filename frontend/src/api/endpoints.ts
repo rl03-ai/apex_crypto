@@ -80,3 +80,32 @@ export const fetchSignals = (params: {
 }
 
 export const triggerScanInstDash = () => api.post<{ message: string }>('/jobs/run/scan-instdash')
+
+// ── Whale Tracking ────────────────────────────────────────────────────────────
+export interface WhaleMetric {
+  symbol: string
+  metrics: {
+    oi: {
+      oi_current_usd: number
+      oi_24h_change_pct: number
+      oi_7d_change_pct: number
+    } | null
+    liq: {
+      total_liquidated_usd: number
+      longs_pct: number
+      shorts_pct: number
+    } | null
+  }
+  whale_score: {
+    score: number
+    signal: 'whale_bull' | 'whale_bear' | 'whale_neutral'
+    description: string
+    components: Record<string, number>
+  }
+}
+
+export const fetchWhales = () =>
+  api.get<{ count: number; data: WhaleMetric[]; timestamp: number }>('/whales')
+
+export const fetchWhaleSymbol = (symbol: string) =>
+  api.get<WhaleMetric>(`/whales/${symbol}`)
