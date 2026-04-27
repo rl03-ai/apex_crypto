@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Cachebust — alterar este timestamp força rebuild quando o conteúdo do src muda
-ARG CACHEBUST=2026-04-27-v22-whale-retry-fallback
+ARG CACHEBUST=2026-04-27-v23-fallback-chain
 RUN echo "Build cachebust: $CACHEBUST"
 
 COPY package*.json ./

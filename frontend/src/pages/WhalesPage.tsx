@@ -22,7 +22,7 @@ export function WhalesPage() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 5 * 60 * 1000) // 5min
+    const interval = setInterval(load, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -43,16 +43,14 @@ export function WhalesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Activity className="w-8 h-8 text-blue-600" />
             <h1 className="text-3xl font-bold text-slate-900">🐳 Whale Tracking</h1>
           </div>
-          <p className="text-slate-600">Smart money activity — OI trends + liquidation signals</p>
+          <p className="text-slate-600">OI trends + funding rate + long/short positioning (Binance/Bybit/OKX fallback)</p>
         </div>
 
-        {/* Actions */}
         <div className="mb-6 flex gap-3">
           <button
             onClick={load}
@@ -70,7 +68,6 @@ export function WhalesPage() {
           </div>
         )}
 
-        {/* Whales Grid */}
         {!loading && whales.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {whales.map((w) => (
@@ -78,7 +75,6 @@ export function WhalesPage() {
                 key={w.symbol}
                 className={`rounded-lg border p-4 ${getSignalColor(w.whale_score.signal)} border-opacity-20`}
               >
-                {/* Symbol + Score */}
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">{w.symbol}</h3>
@@ -89,47 +85,61 @@ export function WhalesPage() {
                   </div>
                 </div>
 
-                {/* Description */}
                 <p className="text-sm text-slate-700 mb-3">{w.whale_score.description}</p>
 
                 {/* OI Metrics */}
-                {w.metrics.oi && (
-                  <div className="mb-3 p-2 bg-slate-100 rounded text-sm">
-                    <div className="font-semibold text-slate-800 mb-1">OI Trend</div>
+                {w.metrics?.oi && (
+                  <div className="mb-2 p-2 bg-slate-100 rounded text-sm">
+                    <div className="font-semibold text-slate-800 mb-1 flex justify-between">
+                      <span>OI Trend</span>
+                      <span className="text-xs text-gray-500">{w.metrics.oi.source}</span>
+                    </div>
                     <div className="grid grid-cols-2 gap-2 text-xs text-slate-700">
                       <div>
                         <div className="text-gray-600">24h</div>
                         <div className={w.metrics.oi.oi_24h_change_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {w.metrics.oi.oi_24h_change_pct > 0 ? '+' : ''}
-                          {w.metrics.oi.oi_24h_change_pct.toFixed(1)}%
+                          {w.metrics.oi.oi_24h_change_pct > 0 ? '+' : ''}{w.metrics.oi.oi_24h_change_pct.toFixed(1)}%
                         </div>
                       </div>
                       <div>
                         <div className="text-gray-600">7d</div>
                         <div className={w.metrics.oi.oi_7d_change_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {w.metrics.oi.oi_7d_change_pct > 0 ? '+' : ''}
-                          {w.metrics.oi.oi_7d_change_pct.toFixed(1)}%
+                          {w.metrics.oi.oi_7d_change_pct > 0 ? '+' : ''}{w.metrics.oi.oi_7d_change_pct.toFixed(1)}%
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Liquidation Metrics */}
-                {w.metrics.liq && (
+                {/* Funding Rate */}
+                {w.metrics?.funding && (
+                  <div className="mb-2 p-2 bg-slate-100 rounded text-sm">
+                    <div className="font-semibold text-slate-800 mb-1">Funding Rate</div>
+                    <div className="text-xs text-slate-700">
+                      <div className={w.metrics.funding.funding_rate_pct > 0.02 ? 'text-orange-600' : w.metrics.funding.funding_rate_pct < -0.02 ? 'text-orange-600' : 'text-slate-700'}>
+                        {w.metrics.funding.funding_rate_pct > 0 ? '+' : ''}{w.metrics.funding.funding_rate_pct.toFixed(4)}% per 8h
+                      </div>
+                      <div className="text-gray-600 text-xs">
+                        Annualized: {w.metrics.funding.funding_rate_annualized_pct.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Long/Short Ratio */}
+                {w.metrics?.lsr && (
                   <div className="p-2 bg-slate-100 rounded text-sm">
-                    <div className="font-semibold text-slate-800 mb-1">Liquidations 24h</div>
-                    <div className="space-y-1 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-800 mb-1">Whale Positioning (24h)</div>
+                    <div className="text-xs text-slate-700">
                       <div className="flex justify-between">
-                        <span>Shorts</span>
-                        <span className="font-semibold text-green-600">{w.metrics.liq.shorts_pct.toFixed(1)}%</span>
+                        <span>L/S Ratio</span>
+                        <span className="font-semibold">{w.metrics.lsr.long_short_ratio.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Longs</span>
-                        <span className="font-semibold text-red-600">{w.metrics.liq.longs_pct.toFixed(1)}%</span>
-                      </div>
-                      <div className="pt-1 text-gray-600">
-                        Total: ${(w.metrics.liq.total_liquidated_usd / 1_000_000).toFixed(1)}M
+                      <div className="flex justify-between text-gray-600">
+                        <span>Change 24h</span>
+                        <span className={w.metrics.lsr.change_24h_pct > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {w.metrics.lsr.change_24h_pct > 0 ? '+' : ''}{w.metrics.lsr.change_24h_pct.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -141,7 +151,9 @@ export function WhalesPage() {
           <div className="text-center py-12 text-slate-600">
             <Activity className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p>Sem dados whale disponíveis no momento.</p>
-            <p className="text-sm text-slate-500">CoinGlass pode estar em rate limit (10 req/min).</p>
+            <p className="text-sm text-slate-500">
+              Verificando logs do servidor — pode ser geo-block nos endpoints públicos.
+            </p>
           </div>
         ) : null}
       </div>

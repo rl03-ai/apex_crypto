@@ -89,11 +89,19 @@ export interface WhaleMetric {
       oi_current_usd: number
       oi_24h_change_pct: number
       oi_7d_change_pct: number
+      source: string
     } | null
-    liq: {
-      total_liquidated_usd: number
-      longs_pct: number
-      shorts_pct: number
+    funding: {
+      funding_rate_pct: number
+      funding_rate_annualized_pct: number
+      next_funding_time: number
+      source: string
+    } | null
+    lsr: {
+      long_account_ratio: number
+      short_account_ratio: number
+      long_short_ratio: number
+      change_24h_pct: number
     } | null
   }
   whale_score: {

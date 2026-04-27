@@ -1,104 +1,60 @@
-"""Endpoints de whale tracking — OI trends + liquidation signals.
+"""Endpoints whale tracking — Binance Futures public API.
 
-GET /whales              → lista whale activity últimas 7d
-GET /whales/{symbol}     → whale metrics para um símbolo
-POST /jobs/run/scan-whales → trigger manual do scan
+GET /whales              → lista whale activity para top símbolos
+GET /whales/{symbol}     → whale metrics para um símbolo específico
 """
 import logging
+from datetime import datetime, timezone
+import asyncio
+
 from fastapi import APIRouter, Query
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix='/whales', tags=['whales'])
 
+# Top symbols para tracking (todos têm USDT pairs em Binance Futures)
+TOP_SYMBOLS = [
+    'BTC', 'ETH', 'BNB', 'SOL', 'ADA', 'DOGE', 'XRP', 'TON', 'LINK',
+    'UNI', 'AVAX', 'AAVE', 'MATIC', 'ARB', 'NEAR',
+]
+
 
 @router.get('')
 async def list_whale_activity(
-    symbol: str | None = Query(None, description='Filtrar por símbolo'),
-    min_score: int | None = Query(None, description='Filtrar por whale_score >= min_score'),
+    min_score: int | None = Query(None, description='Filter por whale_score >= min_score'),
 ) -> dict:
-    """Lista whale activity (OI trends + liquidations) — últimas 7 dias.
-
-    Exemplo response:
-        {
-            'timestamp': 1234567890,
-            'data': [
-                {
-                    'symbol': 'BTC',
-                    'oi': {
-                        'oi_current_usd': 12345678.0,
-                        'oi_24h_change_pct': 5.2,
-                        'oi_7d_change_pct': 12.1,
-                    },
-                    'liq': {
-                        'total_liquidated_usd': 1234567.0,
-                        'longs_pct': 35.0,
-                        'shorts_pct': 65.0,
-                    },
-                    'whale_score': {
-                        'score': 5,
-                        'signal': 'whale_bull',
-                        'description': '...',
-                    },
-                },
-                ...
-            ]
-        }
-    """
+    """Lista whale activity (OI + funding + LSR) para top símbolos."""
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
-    from datetime import datetime, timezone
-    import asyncio
-
-    # Se especificou símbolo, devolve só esse
-    if symbol:
-        metrics = await fetch_whale_metrics(symbol)
-        if not metrics:
-            return {'symbol': symbol, 'data': None}
-
-        whale_score = compute_whale_score(
-            metrics.get('oi'),
-            metrics.get('liq'),
-        )
-
-        return {
-            'symbol': symbol,
-            'metrics': metrics,
-            'whale_score': whale_score,
-            'timestamp': int(datetime.now(timezone.utc).timestamp()),
-        }
-
-    # Senão, scan top symbols
-    top_symbols = [
-        'BTC', 'ETH', 'BNB', 'SOL', 'ADA', 'DOGE', 'XRP', 'TON', 'LINK',
-    ]
-
+    
     results = []
+    
     metrics_list = await asyncio.gather(
-        *[fetch_whale_metrics(s) for s in top_symbols],
+        *[fetch_whale_metrics(s) for s in TOP_SYMBOLS],
         return_exceptions=False,
     )
-
-    for sym, metrics in zip(top_symbols, metrics_list):
+    
+    for sym, metrics in zip(TOP_SYMBOLS, metrics_list):
         if not metrics:
             continue
-
+        
         whale_score = compute_whale_score(
             metrics.get('oi'),
-            metrics.get('liq'),
+            metrics.get('funding'),
+            metrics.get('lsr'),
         )
-
-        # Filtro min_score
+        
         if min_score is not None and whale_score['score'] < min_score:
             continue
-
+        
         results.append({
             'symbol': sym,
             'metrics': metrics,
             'whale_score': whale_score,
         })
-
-    # Sort por whale_score DESC
-    results.sort(key=lambda x: x['whale_score']['score'], reverse=True)
-
+    
+    # Sort por score absoluto (mais extremos primeiro)
+    results.sort(key=lambda x: abs(x['whale_score']['score']), reverse=True)
+    
     return {
         'count': len(results),
         'data': results,
@@ -108,40 +64,36 @@ async def list_whale_activity(
 
 @router.get('/{symbol}')
 async def get_whale_metrics(symbol: str) -> dict:
-    """Get whale metrics para um símbolo específico.
-    
-    Se CoinGlass falhar, retorna whale_score=0 (neutral) em vez de erro.
-    """
+    """Get whale metrics para 1 símbolo (com fallback neutral se falhar)."""
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
-    from datetime import datetime, timezone
-
-    symbol = symbol.upper()
+    
     metrics = await fetch_whale_metrics(symbol)
-
-    # Se conseguiu dados, devolve com score real
+    
     if metrics:
         whale_score = compute_whale_score(
             metrics.get('oi'),
-            metrics.get('liq'),
+            metrics.get('funding'),
+            metrics.get('lsr'),
         )
         return {
-            'symbol': symbol,
+            'symbol': metrics['symbol'],
             'oi': metrics.get('oi'),
-            'liq': metrics.get('liq'),
+            'funding': metrics.get('funding'),
+            'lsr': metrics.get('lsr'),
             'whale_score': whale_score,
             'timestamp': int(datetime.now(timezone.utc).timestamp()),
         }
     
-    # Fallback: retorna whale_score neutra (0) — permite ao frontend render algo
-    log.debug('Whale metrics fallback para %s (CoinGlass indisponível)', symbol)
+    # Fallback: símbolo inválido ou Binance Futures não tem este pair
     return {
-        'symbol': symbol,
+        'symbol': symbol.upper(),
         'oi': None,
-        'liq': None,
+        'funding': None,
+        'lsr': None,
         'whale_score': {
             'score': 0,
             'signal': 'whale_neutral',
-            'description': 'Whale metrics indisponíveis — CoinGlass rate limit ou API offline',
+            'description': f'{symbol} não disponível em Binance Futures (sem dados)',
             'components': {},
         },
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
