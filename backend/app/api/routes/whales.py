@@ -108,28 +108,41 @@ async def list_whale_activity(
 
 @router.get('/{symbol}')
 async def get_whale_metrics(symbol: str) -> dict:
-    """Get whale metrics para um símbolo específico."""
+    """Get whale metrics para um símbolo específico.
+    
+    Se CoinGlass falhar, retorna whale_score=0 (neutral) em vez de erro.
+    """
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
     from datetime import datetime, timezone
 
     symbol = symbol.upper()
     metrics = await fetch_whale_metrics(symbol)
 
-    if not metrics:
+    # Se conseguiu dados, devolve com score real
+    if metrics:
+        whale_score = compute_whale_score(
+            metrics.get('oi'),
+            metrics.get('liq'),
+        )
         return {
             'symbol': symbol,
-            'error': 'Whale metrics não disponíveis (CoinGlass rate limit ou símbolo inválido)',
+            'oi': metrics.get('oi'),
+            'liq': metrics.get('liq'),
+            'whale_score': whale_score,
+            'timestamp': int(datetime.now(timezone.utc).timestamp()),
         }
-
-    whale_score = compute_whale_score(
-        metrics.get('oi'),
-        metrics.get('liq'),
-    )
-
+    
+    # Fallback: retorna whale_score neutra (0) — permite ao frontend render algo
+    log.debug('Whale metrics fallback para %s (CoinGlass indisponível)', symbol)
     return {
         'symbol': symbol,
-        'oi': metrics.get('oi'),
-        'liq': metrics.get('liq'),
-        'whale_score': whale_score,
+        'oi': None,
+        'liq': None,
+        'whale_score': {
+            'score': 0,
+            'signal': 'whale_neutral',
+            'description': 'Whale metrics indisponíveis — CoinGlass rate limit ou API offline',
+            'components': {},
+        },
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
