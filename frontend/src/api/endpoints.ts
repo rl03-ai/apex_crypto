@@ -158,6 +158,7 @@ export interface MatrixRow {
 
 export interface MatrixResponse {
   count: number
+  requested: number
   stats: {
     bullish: number
     bearish: number
@@ -172,10 +173,14 @@ export const fetchMatrix = (params: {
   min_tier?: string
   action?: string
   direction?: 'long' | 'short'
+  limit?: number
+  symbols?: string
 } = {}) => {
   const qs = new URLSearchParams()
   if (params.min_tier) qs.set('min_tier', params.min_tier)
   if (params.action) qs.set('action', params.action)
   if (params.direction) qs.set('direction', params.direction)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.symbols) qs.set('symbols', params.symbols)
   return api.get<MatrixResponse>(`/matrix?${qs.toString()}`)
 }

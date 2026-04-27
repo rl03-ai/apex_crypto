@@ -14,7 +14,7 @@ export function MatrixPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetchMatrix()
+      const res = await fetchMatrix({ limit: 50 })
       setData(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro')
@@ -63,8 +63,8 @@ export function MatrixPage() {
       {data && (
         <div className="whale-stats">
           <div className="whale-stat-card">
-            <span className="whale-stat-label">Tracked</span>
-            <span className="whale-stat-value">{data.count}</span>
+            <span className="whale-stat-label">Tracked / Requested</span>
+            <span className="whale-stat-value">{data.count} / {data.requested}</span>
           </div>
           <div className="whale-stat-card">
             <span className="whale-stat-label">Bullish</span>
