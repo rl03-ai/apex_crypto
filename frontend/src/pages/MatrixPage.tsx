@@ -8,13 +8,14 @@ export function MatrixPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterTab>('all')
+  const [limit, setLimit] = useState<number>(100)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const load = async () => {
+  const load = async (lim?: number) => {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetchMatrix({ limit: 50 })
+      const res = await fetchMatrix({ limit: lim ?? limit })
       setData(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro')
@@ -24,10 +25,11 @@ export function MatrixPage() {
   }
 
   useEffect(() => {
-    load()
-    const t = setInterval(load, 10 * 60 * 1000) // refresh 10min
+    load(limit)
+    const t = setInterval(() => load(limit), 10 * 60 * 1000)
     return () => clearInterval(t)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limit])
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -55,7 +57,7 @@ export function MatrixPage() {
           <h1>⚡ Decision Matrix</h1>
           <p>InstDash 60% + Whale 40% → Composite · Tier · Action</p>
         </div>
-        <button onClick={load} disabled={loading} className="whale-refresh">
+        <button onClick={() => load(limit)} disabled={loading} className="whale-refresh">
           {loading ? '↻ Carregando...' : '↻ Recarregar'}
         </button>
       </div>
@@ -89,7 +91,26 @@ export function MatrixPage() {
           <button onClick={() => setFilter('tier_s')} className={`matrix-tab ${filter === 'tier_s' ? 'active' : ''}`}>Tier S</button>
           <button onClick={() => setFilter('tier_a')} className={`matrix-tab ${filter === 'tier_a' ? 'active' : ''}`}>Tier S+A</button>
         </div>
+        <div className="matrix-tabs" style={{ marginLeft: 'auto' }}>
+          <span style={{ color: '#6e88a8', fontSize: 11, fontWeight: 600, alignSelf: 'center', marginRight: 8 }}>SYMBOLS:</span>
+          {[50, 100, 150, 200].map(n => (
+            <button
+              key={n}
+              onClick={() => setLimit(n)}
+              className={`matrix-tab ${limit === n ? 'active' : ''}`}
+              disabled={loading}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {limit >= 150 && loading && (
+        <div className="card" style={{ borderColor: '#f7b955', color: '#f7b955', fontSize: 12 }}>
+          ⚠ Processing {limit} symbols — this can take 30-60s on first load
+        </div>
+      )}
 
       {error && (
         <div className="card" style={{ borderColor: '#fb7185', color: '#fb7185' }}>

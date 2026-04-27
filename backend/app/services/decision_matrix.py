@@ -209,27 +209,44 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     return result
 
 
-async def compute_matrix(symbols: list[str], coin_ids: list[str] | None = None) -> list[dict]:
-    """Compute decision matrix para lista de símbolos (paralelo).
+async def compute_matrix(
+    symbols: list[str],
+    coin_ids: list[str] | None = None,
+    max_concurrent: int = 20,
+) -> list[dict]:
+    """Compute decision matrix para lista de símbolos (paralelo controlado).
     
     Args:
         symbols: ['BTC', 'ETH', ...]
         coin_ids: ['bitcoin', 'ethereum', ...] opcional
+        max_concurrent: máximo de tarefas paralelas (default 20).
+                        Mais alto = mais rápido mas pode saturar APIs.
     
     Returns:
-        Lista ordenada por composite score (mais bullish primeiro).
+        Lista ordenada por |composite| desc (mais conviction primeiro).
     """
     coin_ids = coin_ids or [None] * len(symbols)
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def _bounded(sym, cid):
+        async with semaphore:
+            return await compute_decision_row(sym, cid)
     
     results = await asyncio.gather(
-        *[compute_decision_row(sym, cid) for sym, cid in zip(symbols, coin_ids)],
-        return_exceptions=False,
+        *[_bounded(sym, cid) for sym, cid in zip(symbols, coin_ids)],
+        return_exceptions=True,  # Don't fail entire batch on one error
     )
     
-    # Filtra Nones e ordena por |composite| desc (mais conviction primeiro)
-    valid = [r for r in results if r is not None]
-    valid.sort(key=lambda r: abs(r['composite']), reverse=True)
+    # Filtra erros e Nones
+    valid = []
+    for r in results:
+        if isinstance(r, Exception):
+            log.debug('compute_matrix: row exception: %s', r)
+            continue
+        if r is not None:
+            valid.append(r)
     
+    valid.sort(key=lambda r: abs(r['composite']), reverse=True)
     return valid
 
 
