@@ -214,9 +214,13 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
     score_data = compute_score(state)
     setup = compute_setup_quality(state, score_data)
 
+    # ── Whale metrics (CoinGlass OI + liquidations) ────────────────────
+    # Nota: whale_metrics virá de job background que popula cache
+    # Por enquanto, None. Será integrado no scan_whales job depois.
+    whale_score_data = None
+
     # ── Output ───────────────────────────────────────────────────────────────
     # Helper recursivo para converter qualquer numpy type → Python nativo
-    # Aplica-se a dicts/lists aninhados (ex: structure, fvg, order_block, etc.)
     def deep_to_py(obj):
         if isinstance(obj, dict):
             return {k: deep_to_py(v) for k, v in obj.items()}
@@ -289,6 +293,9 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
 
         # Volume profile
         'volume_profile': vp,
+
+        # Whale metrics (smart money)
+        'whale_score': whale_score_data,
     }
 
     # Converter recursivamente todos os numpy types antes de devolver

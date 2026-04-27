@@ -8,6 +8,7 @@ import { PortfolioPage }  from './pages/PortfolioPage'
 import { AlertsPage }     from './pages/AlertsPage'
 import { LoginPage }      from './pages/LoginPage'
 import { SignalsPage }    from './pages/SignalsPage'
+import { WhalesPage }     from './pages/WhalesPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   return hasToken() ? <>{children}</> : <Navigate to="/login" replace />
@@ -22,6 +23,7 @@ export default function App() {
         <Route index                element={<DashboardPage />} />
         <Route path="asset/:id"     element={<AssetPage />} />
         <Route path="signals"       element={<SignalsPage />} />
+        <Route path="whales"        element={<WhalesPage />} />
         <Route path="watchlist"     element={<WatchlistPage />} />
         <Route path="portfolio"     element={<PortfolioPage />} />
         <Route path="alerts"        element={<AlertsPage />} />

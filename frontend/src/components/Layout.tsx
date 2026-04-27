@@ -57,6 +57,9 @@ export function Layout() {
           <NavLink to="/signals">
             <span className="nav-icon">🎯</span> Sinais
           </NavLink>
+          <NavLink to="/whales">
+            <span className="nav-icon">🐳</span> Whales
+          </NavLink>
           <NavLink to="/watchlist">
             <span className="nav-icon">★</span> Watchlist
           </NavLink>
