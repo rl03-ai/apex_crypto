@@ -8,7 +8,7 @@ import { PortfolioPage }  from './pages/PortfolioPage'
 import { AlertsPage }     from './pages/AlertsPage'
 import { LoginPage }      from './pages/LoginPage'
 import { SignalsPage }    from './pages/SignalsPage'
-import { WhalesPage }     from './pages/WhalesPage'
+import WhalesPage        from './pages/WhalesPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   return hasToken() ? <>{children}</> : <Navigate to="/login" replace />
