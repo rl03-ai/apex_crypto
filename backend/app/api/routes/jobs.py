@@ -11,7 +11,6 @@ Requer autenticação (usa o mesmo CurrentUser dos outros endpoints).
 import logging
 from fastapi import APIRouter, BackgroundTasks
 
-from app.api.deps import CurrentUser
 from app.jobs.scheduler import get_job_status
 
 log = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ router = APIRouter()
 
 
 @router.get('/status')
-def jobs_status(current_user: CurrentUser) -> dict:
+def jobs_status() -> dict:
     """Devolve o estado do scheduler e próximas execuções de cada job."""
     from app.core.config import get_settings
     settings = get_settings()
@@ -32,7 +31,7 @@ def jobs_status(current_user: CurrentUser) -> dict:
 
 
 @router.post('/run/check-alerts')
-def trigger_check_alerts(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
+def trigger_check_alerts(bg: BackgroundTasks) -> dict:
     """Dispara o job de alertas imediatamente em background."""
     from app.jobs.check_alerts import run
     bg.add_task(_run_and_log, 'check_alerts', run)
@@ -40,7 +39,7 @@ def trigger_check_alerts(current_user: CurrentUser, bg: BackgroundTasks) -> dict
 
 
 @router.post('/run/update-portfolios')
-def trigger_update_portfolios(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
+def trigger_update_portfolios(bg: BackgroundTasks) -> dict:
     """Dispara o job de actualização de portfolios imediatamente em background."""
     from app.jobs.update_portfolios import run
     bg.add_task(_run_and_log, 'update_portfolios', run)
@@ -48,7 +47,7 @@ def trigger_update_portfolios(current_user: CurrentUser, bg: BackgroundTasks) ->
 
 
 @router.post('/run/cleanup')
-def trigger_cleanup(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
+def trigger_cleanup(bg: BackgroundTasks) -> dict:
     """Dispara a limpeza de alertas antigos imediatamente em background."""
     from app.jobs.cleanup_alerts import run
     bg.add_task(_run_and_log, 'cleanup_alerts', run)
@@ -56,7 +55,7 @@ def trigger_cleanup(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
 
 
 @router.post('/run/scan-instdash')
-def trigger_scan_instdash(current_user: CurrentUser, bg: BackgroundTasks) -> dict:
+def trigger_scan_instdash(bg: BackgroundTasks) -> dict:
     """Dispara o scan InstDash (análise + sinais) em background."""
     from app.jobs.scan_instdash import run
     bg.add_task(_run_and_log, 'scan_instdash', run)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import DBSession
 from app.models.signal import Signal
 from app.schemas.signal import SignalOut
 
@@ -17,7 +17,6 @@ router = APIRouter()
 
 @router.get('', response_model=list[SignalOut])
 def list_signals(
-    current_user: CurrentUser,
     db: DBSession,
     direction: str | None = Query(None, description="'long' | 'short' | 'exit'"),
     min_score: int | None = Query(None, description='Filtra sinais com |score| >= min_score'),
