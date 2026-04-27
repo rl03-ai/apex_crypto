@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { Activity, AlertCircle } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchWhales, type WhaleMetric } from '../api/endpoints'
 
 export function WhalesPage() {
@@ -26,137 +25,216 @@ export function WhalesPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const getSignalColor = (signal: string) => {
-    if (signal === 'whale_bull') return 'text-green-500 bg-green-50'
-    if (signal === 'whale_bear') return 'text-red-500 bg-red-50'
-    return 'text-gray-500 bg-gray-50'
-  }
-
-  const getScoreColor = (score: number) => {
-    if (score >= 5) return 'text-green-600'
-    if (score >= 2) return 'text-green-500'
-    if (score <= -5) return 'text-red-600'
-    if (score <= -2) return 'text-red-500'
-    return 'text-gray-600'
-  }
+  // Aggregate stats
+  const stats = useMemo(() => {
+    const bullish = whales.filter(w => w.whale_score.score >= 2).length
+    const bearish = whales.filter(w => w.whale_score.score <= -2).length
+    const topBull = [...whales].sort((a, b) => b.whale_score.score - a.whale_score.score)[0]
+    const topBear = [...whales].sort((a, b) => a.whale_score.score - b.whale_score.score)[0]
+    return { bullish, bearish, topBull, topBear, total: whales.length }
+  }, [whales])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Activity className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-slate-900">🐳 Whale Tracking</h1>
+    <div className="whale-page">
+      {/* Header */}
+      <div className="whale-header">
+        <div>
+          <span className="kicker">Smart money tracker</span>
+          <h1>🐳 Whale Tracking</h1>
+          <p>Open Interest · Funding Rate · Top trader positioning</p>
+        </div>
+        <button onClick={load} disabled={loading} className="whale-refresh">
+          {loading ? '↻ Carregando...' : '↻ Recarregar'}
+        </button>
+      </div>
+
+      {/* Aggregate stats */}
+      {whales.length > 0 && (
+        <div className="whale-stats">
+          <div className="whale-stat-card">
+            <span className="whale-stat-label">Tracked</span>
+            <span className="whale-stat-value">{stats.total}</span>
           </div>
-          <p className="text-slate-600">OI trends + funding rate + long/short positioning (Binance/Bybit/OKX fallback)</p>
+          <div className="whale-stat-card">
+            <span className="whale-stat-label">Bullish</span>
+            <span className="whale-stat-value bull">{stats.bullish}</span>
+          </div>
+          <div className="whale-stat-card">
+            <span className="whale-stat-label">Bearish</span>
+            <span className="whale-stat-value bear">{stats.bearish}</span>
+          </div>
+          <div className="whale-stat-card">
+            <span className="whale-stat-label">Top signal</span>
+            <span className="whale-stat-value">
+              {stats.topBull && stats.topBull.whale_score.score >= 2 ? stats.topBull.symbol :
+               stats.topBear && stats.topBear.whale_score.score <= -2 ? stats.topBear.symbol : '—'}
+            </span>
+          </div>
         </div>
+      )}
 
-        <div className="mb-6 flex gap-3">
-          <button
-            onClick={load}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Carregando...' : 'Recarregar'}
-          </button>
+      {error && (
+        <div className="card" style={{ borderColor: '#fb7185', color: '#fb7185' }}>
+          ⚠ {error}
         </div>
+      )}
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-red-700">{error}</div>
+      {/* Whales Grid */}
+      {!loading && whales.length > 0 ? (
+        <div className="whale-grid">
+          {whales.map((w) => (
+            <WhaleCard key={w.symbol} whale={w} />
+          ))}
+        </div>
+      ) : !loading && !error ? (
+        <div className="whale-empty card">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M16.69 7.44a6.973 6.973 0 0 0-1.69-1.32M6 19a3 3 0 0 1-3-3v-3a8 8 0 0 1 16 0v3a3 3 0 0 1-3 3H6Z"/>
+            <path d="M9 13h.01M15 13h.01"/>
+          </svg>
+          <p style={{ marginBottom: 8, color: '#9fb0c8' }}>
+            Sem dados whale disponíveis no momento.
+          </p>
+          <p style={{ fontSize: 12 }}>
+            Os endpoints públicos podem estar geo-bloqueados — verifica os logs do servidor.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function WhaleCard({ whale }: { whale: WhaleMetric }) {
+  const { symbol, metrics, whale_score } = whale
+  const signalClass = whale_score.signal === 'whale_bull' ? 'bull' :
+                      whale_score.signal === 'whale_bear' ? 'bear' : 'neutral'
+  
+  const scoreSign = whale_score.score > 0 ? '+' : ''
+  
+  return (
+    <article className={`whale-card ${signalClass}`}>
+      <div className="whale-card-head">
+        <div>
+          <div className="whale-symbol">{symbol}</div>
+          <div className="whale-signal">
+            {whale_score.signal === 'whale_bull' && '↗ Whale bull'}
+            {whale_score.signal === 'whale_bear' && '↘ Whale bear'}
+            {whale_score.signal === 'whale_neutral' && '— Neutral'}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="whale-score">{scoreSign}{whale_score.score}</div>
+          <div className="whale-score-suffix">/ 10</div>
+        </div>
+      </div>
+
+      <div className="whale-desc">{whale_score.description}</div>
+
+      <div className="whale-metrics">
+        {/* OI */}
+        {metrics?.oi && (
+          <div className="whale-metric">
+            <div className="whale-metric-label">
+              OI Trend
+              <span className="whale-metric-source">{metrics.oi.source}</span>
+            </div>
+            <div className="whale-metric-body">
+              <PercentBar pct={metrics.oi.oi_7d_change_pct} max={30} />
+              <div className="whale-row">
+                <span>24h</span>
+                <strong className={metrics.oi.oi_24h_change_pct > 0 ? 'pos' : 'neg'}>
+                  {metrics.oi.oi_24h_change_pct > 0 ? '+' : ''}{metrics.oi.oi_24h_change_pct.toFixed(1)}%
+                </strong>
+                <span style={{ marginLeft: 12 }}>7d</span>
+                <strong className={metrics.oi.oi_7d_change_pct > 0 ? 'pos' : 'neg'}>
+                  {metrics.oi.oi_7d_change_pct > 0 ? '+' : ''}{metrics.oi.oi_7d_change_pct.toFixed(1)}%
+                </strong>
+              </div>
+            </div>
           </div>
         )}
 
-        {!loading && whales.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {whales.map((w) => (
-              <div
-                key={w.symbol}
-                className={`rounded-lg border p-4 ${getSignalColor(w.whale_score.signal)} border-opacity-20`}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">{w.symbol}</h3>
-                    <p className="text-xs text-slate-600 capitalize">{w.whale_score.signal.replace('_', ' ')}</p>
-                  </div>
-                  <div className={`text-2xl font-bold ${getScoreColor(w.whale_score.score)}`}>
-                    {w.whale_score.score > 0 ? '+' : ''}{w.whale_score.score}
-                  </div>
-                </div>
-
-                <p className="text-sm text-slate-700 mb-3">{w.whale_score.description}</p>
-
-                {/* OI Metrics */}
-                {w.metrics?.oi && (
-                  <div className="mb-2 p-2 bg-slate-100 rounded text-sm">
-                    <div className="font-semibold text-slate-800 mb-1 flex justify-between">
-                      <span>OI Trend</span>
-                      <span className="text-xs text-gray-500">{w.metrics.oi.source}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-700">
-                      <div>
-                        <div className="text-gray-600">24h</div>
-                        <div className={w.metrics.oi.oi_24h_change_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {w.metrics.oi.oi_24h_change_pct > 0 ? '+' : ''}{w.metrics.oi.oi_24h_change_pct.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-gray-600">7d</div>
-                        <div className={w.metrics.oi.oi_7d_change_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {w.metrics.oi.oi_7d_change_pct > 0 ? '+' : ''}{w.metrics.oi.oi_7d_change_pct.toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Funding Rate */}
-                {w.metrics?.funding && (
-                  <div className="mb-2 p-2 bg-slate-100 rounded text-sm">
-                    <div className="font-semibold text-slate-800 mb-1">Funding Rate</div>
-                    <div className="text-xs text-slate-700">
-                      <div className={w.metrics.funding.funding_rate_pct > 0.02 ? 'text-orange-600' : w.metrics.funding.funding_rate_pct < -0.02 ? 'text-orange-600' : 'text-slate-700'}>
-                        {w.metrics.funding.funding_rate_pct > 0 ? '+' : ''}{w.metrics.funding.funding_rate_pct.toFixed(4)}% per 8h
-                      </div>
-                      <div className="text-gray-600 text-xs">
-                        Annualized: {w.metrics.funding.funding_rate_annualized_pct.toFixed(1)}%
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Long/Short Ratio */}
-                {w.metrics?.lsr && (
-                  <div className="p-2 bg-slate-100 rounded text-sm">
-                    <div className="font-semibold text-slate-800 mb-1">Whale Positioning (24h)</div>
-                    <div className="text-xs text-slate-700">
-                      <div className="flex justify-between">
-                        <span>L/S Ratio</span>
-                        <span className="font-semibold">{w.metrics.lsr.long_short_ratio.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-600">
-                        <span>Change 24h</span>
-                        <span className={w.metrics.lsr.change_24h_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {w.metrics.lsr.change_24h_pct > 0 ? '+' : ''}{w.metrics.lsr.change_24h_pct.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+        {/* Funding */}
+        {metrics?.funding && (
+          <div className="whale-metric">
+            <div className="whale-metric-label">
+              Funding
+              <span className="whale-metric-source">{metrics.funding.source}</span>
+            </div>
+            <div className="whale-metric-body">
+              <PercentBar pct={metrics.funding.funding_rate_pct * 100} max={5} />
+              <div className="whale-row">
+                <strong className={
+                  metrics.funding.funding_rate_pct > 0.02 ? 'warn' :
+                  metrics.funding.funding_rate_pct < -0.02 ? 'warn' :
+                  metrics.funding.funding_rate_pct > 0 ? 'pos' : 'neg'
+                }>
+                  {metrics.funding.funding_rate_pct > 0 ? '+' : ''}{metrics.funding.funding_rate_pct.toFixed(4)}%
+                </strong>
+                <span>per 8h · {metrics.funding.funding_rate_annualized_pct.toFixed(1)}% APR</span>
               </div>
-            ))}
+            </div>
           </div>
-        ) : !loading ? (
-          <div className="text-center py-12 text-slate-600">
-            <Activity className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p>Sem dados whale disponíveis no momento.</p>
-            <p className="text-sm text-slate-500">
-              Verificando logs do servidor — pode ser geo-block nos endpoints públicos.
-            </p>
+        )}
+
+        {/* LSR */}
+        {metrics?.lsr && (
+          <div className="whale-metric">
+            <div className="whale-metric-label">
+              L/S Ratio
+              <span className="whale-metric-source">top traders</span>
+            </div>
+            <div className="whale-metric-body">
+              <RatioBar long={metrics.lsr.long_account_ratio} short={metrics.lsr.short_account_ratio} />
+              <div className="whale-row">
+                <strong>{metrics.lsr.long_short_ratio.toFixed(2)}</strong>
+                <span>24h shift</span>
+                <strong className={metrics.lsr.change_24h_pct > 0 ? 'pos' : 'neg'}>
+                  {metrics.lsr.change_24h_pct > 0 ? '+' : ''}{metrics.lsr.change_24h_pct.toFixed(1)}%
+                </strong>
+              </div>
+            </div>
           </div>
-        ) : null}
+        )}
       </div>
+    </article>
+  )
+}
+
+/* Mini bar that fills from center: positive right (green), negative left (red) */
+function PercentBar({ pct, max }: { pct: number; max: number }) {
+  const clamped = Math.max(-max, Math.min(max, pct))
+  const widthPct = Math.abs(clamped) / max * 50  // % of half width
+  const isPositive = clamped >= 0
+  
+  return (
+    <div className="whale-bar">
+      <div
+        className={`whale-bar-fill ${isPositive ? 'pos' : 'neg'}`}
+        style={{
+          width: `${widthPct}%`,
+          [isPositive ? 'left' : 'right']: '50%',
+        }}
+      />
+    </div>
+  )
+}
+
+/* Stacked bar showing long vs short proportion */
+function RatioBar({ long, short }: { long: number; short: number }) {
+  const total = long + short || 1
+  const longPct = (long / total) * 100
+  
+  return (
+    <div className="whale-bar" style={{ background: '#fb7185' }}>
+      <div
+        style={{
+          position: 'absolute', top: 0, bottom: 0, left: 0,
+          width: `${longPct}%`,
+          background: 'linear-gradient(90deg, #22c55e, #34d399)',
+          borderRadius: '999px 0 0 999px',
+        }}
+      />
     </div>
   )
 }
