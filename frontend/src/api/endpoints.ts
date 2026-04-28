@@ -119,6 +119,15 @@ export const fetchWhaleSymbol = (symbol: string) =>
   api.get<WhaleMetric>(`/whales/${symbol}`)
 
 // ── Decision Matrix ───────────────────────────────────────────────────────────
+export interface StageData {
+  stage: 'ACCUMULATION' | 'MARKUP_EARLY' | 'MARKUP_MATURE' | 'EXTENDED' | 'DISTRIBUTION' | 'MARKDOWN' | 'CHOP'
+  stage_label: string
+  score: number
+  tier: 'S' | 'A' | 'B' | 'C' | 'D'
+  action: string
+  reasons: string[]
+}
+
 export interface MatrixRow {
   symbol: string
   coin_id: string | null
@@ -126,8 +135,6 @@ export interface MatrixRow {
   change_24h: number
   instdash: {
     score: number
-    score_norm: number
-    signal: string
     rsi: number | null
     adx: number | null
     ltf_trend: string | null
@@ -136,9 +143,10 @@ export interface MatrixRow {
     aligned: boolean | null
     sl_long: number | null
     tp_long: number | null
-    sl_short: number | null
-    tp_short: number | null
+    ext_above_ma200_pct: number | null
   }
+  stage_1d: StageData
+  stage_1w: StageData | null
   whale: {
     score: number
     signal: string
@@ -152,7 +160,7 @@ export interface MatrixRow {
   } | null
   composite: number
   tier: 'S' | 'A' | 'B' | 'C' | 'D'
-  action: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG SELL'
+  action: 'STRONG BUY' | 'BUY' | 'HOLD' | 'AVOID' | 'WATCH'
   timestamp: number
 }
 
@@ -162,6 +170,9 @@ export interface MatrixResponse {
   stats: {
     bullish: number
     bearish: number
+    accumulating: number
+    early_markup: number
+    extended: number
     tier_s: number
     tier_a: number
   }

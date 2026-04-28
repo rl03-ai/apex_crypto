@@ -94,6 +94,12 @@ async def get_decision_matrix(
     total = len(rows)
     bullish = sum(1 for r in rows if r['composite'] >= 3)
     bearish = sum(1 for r in rows if r['composite'] <= -3)
+    
+    # Stage counts
+    accumulating = sum(1 for r in rows if r['stage_1d']['stage'] == 'ACCUMULATION' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'ACCUMULATION'))
+    early_markup = sum(1 for r in rows if r['stage_1d']['stage'] == 'MARKUP_EARLY' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'MARKUP_EARLY'))
+    extended = sum(1 for r in rows if r['stage_1d']['stage'] == 'EXTENDED' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'EXTENDED'))
+    
     tier_s = sum(1 for r in rows if r['tier'] == 'S')
     tier_a = sum(1 for r in rows if r['tier'] == 'A')
     
@@ -103,6 +109,9 @@ async def get_decision_matrix(
         'stats': {
             'bullish': bullish,
             'bearish': bearish,
+            'accumulating': accumulating,
+            'early_markup': early_markup,
+            'extended': extended,
             'tier_s': tier_s,
             'tier_a': tier_a,
         },

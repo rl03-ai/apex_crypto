@@ -128,8 +128,42 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
     bb_w_avg = sma(bb_w, 100)
     if not pd.isna(bb_w.iloc[-1]) and not pd.isna(bb_w_avg.iloc[-1]):
         squeeze = bb_w.iloc[-1] < bb_w_avg.iloc[-1] * 0.75
+        # Squeeze just released: estava em squeeze há 2-3 barras, agora não
+        if len(bb_w) >= 4:
+            was_squeezing = (
+                bb_w.iloc[-3] < bb_w_avg.iloc[-3] * 0.75
+                and bb_w.iloc[-4] < bb_w_avg.iloc[-4] * 0.75
+            )
+            squeeze_release = was_squeezing and not squeeze
+        else:
+            squeeze_release = False
     else:
         squeeze = False
+        squeeze_release = False
+
+    # Pullback to MA: preço está perto MA1 ou MA2 numa trend up (potential entry)
+    # Usa LTF trend bias (close > MA3)
+    ltf_trend_up_simple = close.iloc[-1] > ma3.iloc[-1] and ma1.iloc[-1] > ma2.iloc[-1]
+    ltf_trend_dn_simple = close.iloc[-1] < ma3.iloc[-1] and ma1.iloc[-1] < ma2.iloc[-1]
+    # Distância % entre preço e MA1/MA2 — pullback se for próximo de MA21
+    dist_ma2_pct = ((close.iloc[-1] - ma2.iloc[-1]) / ma2.iloc[-1]) * 100
+    pullback_to_ma21_bull = ltf_trend_up_simple and -2.0 <= dist_ma2_pct <= 2.0
+    pullback_to_ma21_bear = ltf_trend_dn_simple and -2.0 <= dist_ma2_pct <= 2.0
+    
+    # Distância % preço vs MA200 (extension indicator)
+    if not pd.isna(ma4.iloc[-1]) and ma4.iloc[-1] > 0:
+        ext_above_ma200_pct = ((close.iloc[-1] - ma4.iloc[-1]) / ma4.iloc[-1]) * 100
+    else:
+        ext_above_ma200_pct = 0.0
+    
+    # Volume burst: vol actual > 2x average
+    vol_burst = vol_ratio > 2.0
+    
+    # Recent price change 7 days (for blow-off detection)
+    if len(close) >= 8:
+        price_change_7d_pct = ((close.iloc[-1] - close.iloc[-8]) / close.iloc[-8]) * 100
+    else:
+        price_change_7d_pct = 0.0
 
     # ── HTF data ─────────────────────────────────────────────────────────────
     if df_htf is not None and len(df_htf) >= 50:
@@ -197,6 +231,15 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         'aligned_bull': aligned_bull,
         'aligned_bear': aligned_bear,
         'squeeze': squeeze,
+        'squeeze_release': squeeze_release,
+        'pullback_ma21_bull': pullback_to_ma21_bull,
+        'pullback_ma21_bear': pullback_to_ma21_bear,
+        'ext_above_ma200_pct': ext_above_ma200_pct,
+        'dist_ma21_pct': dist_ma2_pct,
+        'vol_burst': vol_burst,
+        'vol_ratio': vol_ratio,
+        'price_change_7d_pct': price_change_7d_pct,
+        'atr_pct': float(atr_pct.iloc[-1]),
         'struct_bias':  structure['struct_bias'],
         'in_bull_fvg':  fvg['in_bull_fvg'],
         'in_bear_fvg':  fvg['in_bear_fvg'],
@@ -274,7 +317,15 @@ def _compute_analysis(symbol: str, df: pd.DataFrame, df_htf: Optional[pd.DataFra
         'bb_basis': state['bb_basis'],
         'bb_upper': round(float(bb_up.iloc[-1]), 6),
         'bb_lower': round(float(bb_dn.iloc[-1]), 6),
+        # Squeeze + Stage detection
         'squeeze': bool(state['squeeze']),
+        'squeeze_release': bool(state.get('squeeze_release', False)),
+        'pullback_ma21_bull': bool(state.get('pullback_ma21_bull', False)),
+        'pullback_ma21_bear': bool(state.get('pullback_ma21_bear', False)),
+        'ext_above_ma200_pct': round(state.get('ext_above_ma200_pct', 0), 2),
+        'dist_ma21_pct': round(state.get('dist_ma21_pct', 0), 2),
+        'vol_burst': bool(state.get('vol_burst', False)),
+        'price_change_7d_pct': round(state.get('price_change_7d_pct', 0), 2),
 
         # VWAP
         'vwap': round(float(vwap.iloc[-1]), 6) if not pd.isna(vwap.iloc[-1]) else None,

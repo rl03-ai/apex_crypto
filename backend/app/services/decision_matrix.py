@@ -1,24 +1,10 @@
-"""Decision Matrix — combina InstDash + Whale tracking para score composto.
+"""Decision Matrix — Stage Detector v2 com dual timeframe (1d + 1w).
 
-Composite Score:
-  InstDash normalized (-16/+16 → -10/+10) × 0.6
-  + Whale score (-10/+10) × 0.4
-  = Composite (-10 a +10)
-
-Tier (conviction):
-  Convergence boost: se InstDash e Whale apontam mesma direcção, +1 tier
-  S → |composite| >= 8 + convergence
-  A → |composite| >= 6
-  B → |composite| >= 4
-  C → |composite| >= 2
-  D → |composite| < 2
-
-Action:
-  STRONG BUY  → composite >= 6
-  BUY         → composite >= 3
-  HOLD        → composite > -3
-  SELL        → composite > -6
-  STRONG SELL → composite <= -6
+Para holds de semanas/meses:
+  - Score baseado em stage (ACCUMULATION/MARKUP/EXTENDED/MARKDOWN/CHOP)
+  - Penaliza setups esticados
+  - Premia inícios e confirmações
+  - Dual TF: 1d (entry timing) + 1w (macro context)
 """
 import logging
 import asyncio
@@ -26,86 +12,12 @@ from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
-# Cache: symbol → {data, updated_at}
 _CACHE = {}
-_CACHE_TTL_SECONDS = 600  # 10 min (mais curto que whale para refresh frequente)
-
-
-def _norm_instdash(score: int) -> float:
-    """Normaliza InstDash score (-16/+16) para (-10/+10)."""
-    return round(score * 10 / 16, 2)
-
-
-def _compute_tier(composite: float, instdash_norm: float, whale: int) -> str:
-    """Tier S/A/B/C/D baseado em conviction.
-    
-    Convergence: se ambos apontam mesma direcção (sinal mesmo), bonus.
-    """
-    abs_score = abs(composite)
-    
-    # Convergence: ambos têm sinal forte e mesma direcção
-    same_direction = (instdash_norm >= 2 and whale >= 2) or (instdash_norm <= -2 and whale <= -2)
-    
-    if abs_score >= 8 and same_direction:
-        return 'S'
-    if abs_score >= 6:
-        return 'A'
-    if abs_score >= 4:
-        return 'B'
-    if abs_score >= 2:
-        return 'C'
-    return 'D'
-
-
-def _compute_action(composite: float) -> str:
-    """Action baseada em composite score."""
-    if composite >= 6:
-        return 'STRONG BUY'
-    if composite >= 3:
-        return 'BUY'
-    if composite > -3:
-        return 'HOLD'
-    if composite > -6:
-        return 'SELL'
-    return 'STRONG SELL'
+_CACHE_TTL_SECONDS = 600  # 10 min
 
 
 async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict | None:
-    """Compute decision matrix row para um símbolo.
-    
-    Args:
-        symbol: 'BTCUSDT' ou 'BTC'
-        coin_id: 'bitcoin' (CoinGecko id, opcional)
-    
-    Returns:
-        {
-            'symbol': 'BTCUSDT',
-            'coin_id': 'bitcoin',
-            'price': 67234.5,
-            'change_24h': 2.34,
-            'instdash': {
-                'score': 8,         # raw -16/+16
-                'score_norm': 5.0,  # normalized -10/+10
-                'rsi': 52.3,
-                'adx': 28.4,
-                'ltf_trend': 'bull',
-                'htf_trend': 'bull',
-                'setup_quality': 'LONG válido',
-                'aligned': True,
-            },
-            'whale': {
-                'score': 4,
-                'signal': 'whale_bull',
-                'oi_7d': 12.3,
-                'funding': 0.012,
-                'lsr': 1.85,
-            },
-            'composite': 4.8,  # final score
-            'tier': 'B',
-            'action': 'BUY',
-            'timestamp': 1234567890,
-        }
-    """
+    """Compute decision row com dual TF (1d + 1w) + stage detection."""
     cache_key = f'matrix_{symbol}'
     if cache_key in _CACHE:
         cached = _CACHE[cache_key]
@@ -116,6 +28,7 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     from app.services.instdash import analyse_symbol
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
     from app.services.binance import resolve_binance_symbol
+    from app.services.stage_detector import detect_stage
     
     # Resolve symbol
     if symbol.upper().endswith('USDT'):
@@ -124,14 +37,14 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     else:
         binance_sym = await resolve_binance_symbol(coin_id or symbol, fallback_symbol=symbol)
         if not binance_sym:
-            log.debug('decision_matrix: cant resolve %s', symbol)
             return None
         coin_short = binance_sym.replace('USDT', '')
     
-    # Fetch InstDash + Whale em paralelo
+    # Fetch dual TF (1d + 1w) + Whale em paralelo
     try:
-        instdash, whale_metrics = await asyncio.gather(
+        instdash_1d, instdash_1w, whale_metrics = await asyncio.gather(
             analyse_symbol(binance_sym, interval='1d', htf_interval='1w'),
+            analyse_symbol(binance_sym, interval='1w', htf_interval='1M'),
             fetch_whale_metrics(coin_short),
             return_exceptions=False,
         )
@@ -139,65 +52,88 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
         log.debug('decision_matrix gather falhou para %s: %s', binance_sym, e)
         return None
     
-    if not instdash:
+    if not instdash_1d:
         return None
     
-    # InstDash normalized
-    instdash_score = instdash.get('score', 0)
-    instdash_norm = _norm_instdash(instdash_score)
-    
     # Whale score
-    whale_score_data = None
+    whale_data = None
+    whale_score = 0
     if whale_metrics:
-        whale_score_data = compute_whale_score(
+        ws = compute_whale_score(
             whale_metrics.get('oi'),
             whale_metrics.get('funding'),
             whale_metrics.get('lsr'),
         )
-    whale_score = whale_score_data['score'] if whale_score_data else 0
+        whale_score = ws['score']
+        whale_data = {
+            'score': whale_score,
+            'signal': ws['signal'],
+            'description': ws['description'],
+            'oi_24h': whale_metrics.get('oi', {}).get('oi_24h_change_pct') if whale_metrics.get('oi') else None,
+            'oi_7d': whale_metrics.get('oi', {}).get('oi_7d_change_pct') if whale_metrics.get('oi') else None,
+            'funding': whale_metrics.get('funding', {}).get('funding_rate_pct') if whale_metrics.get('funding') else None,
+            'funding_apr': whale_metrics.get('funding', {}).get('funding_rate_annualized_pct') if whale_metrics.get('funding') else None,
+            'lsr': whale_metrics.get('lsr', {}).get('long_short_ratio') if whale_metrics.get('lsr') else None,
+            'lsr_change': whale_metrics.get('lsr', {}).get('change_24h_pct') if whale_metrics.get('lsr') else None,
+        }
     
-    # Composite (60% InstDash, 40% Whale)
-    composite = (instdash_norm * 0.6) + (whale_score * 0.4)
-    composite = max(-10, min(10, round(composite, 2)))
+    # Stage detection — 1d e 1w (whale só passa ao 1d para não duplicar peso)
+    stage_1d = detect_stage(instdash_1d, whale_data)
+    stage_1w = detect_stage(instdash_1w, None) if instdash_1w else None
     
-    # Tier + Action
-    tier = _compute_tier(composite, instdash_norm, whale_score)
-    action = _compute_action(composite)
+    # Composite final: 1w tem mais peso (60%) porque holds são longos
+    if stage_1w:
+        composite = round((stage_1w['score'] * 0.6 + stage_1d['score'] * 0.4), 2)
+    else:
+        composite = stage_1d['score']
+    
+    # Tier final: usa o mais restritivo entre 1d e 1w
+    tier_order = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
+    if stage_1w and tier_order[stage_1w['tier']] >= tier_order[stage_1d['tier']]:
+        # 1w domina se tier alto
+        final_tier = stage_1w['tier'] if stage_1w['stage'] in ('ACCUMULATION', 'MARKUP_EARLY') else stage_1d['tier']
+    else:
+        final_tier = stage_1d['tier']
+    
+    # Action: regras combinadas
+    action_1d = stage_1d['action']
+    action_1w = stage_1w['action'] if stage_1w else action_1d
+    
+    # Convergência: ambos BUY → STRONG BUY
+    if action_1d == 'STRONG BUY' and action_1w in ('STRONG BUY', 'BUY'):
+        final_action = 'STRONG BUY'
+    elif action_1d == 'BUY' and action_1w == 'STRONG BUY':
+        final_action = 'STRONG BUY'
+    elif action_1w == 'AVOID':  # 1w é prioridade — se HTF avoid, evita
+        final_action = 'AVOID'
+    elif action_1d in ('STRONG BUY', 'BUY') and action_1w not in ('AVOID',):
+        final_action = action_1d
+    else:
+        final_action = action_1w if action_1w else action_1d
     
     result = {
         'symbol': binance_sym,
         'coin_id': coin_id,
-        'price': instdash.get('price', 0),
-        'change_24h': instdash.get('change_24h_pct', 0),
+        'price': instdash_1d.get('price', 0),
+        'change_24h': instdash_1d.get('change_24h_pct', 0),
         'instdash': {
-            'score': instdash_score,
-            'score_norm': instdash_norm,
-            'signal': instdash.get('signal', 'neutral'),
-            'rsi': instdash.get('rsi'),
-            'adx': instdash.get('adx'),
-            'ltf_trend': instdash.get('ltf_trend'),
-            'htf_trend': instdash.get('htf_trend'),
-            'setup_quality': instdash.get('setup_quality'),
-            'aligned': instdash.get('aligned_bull') or instdash.get('aligned_bear'),
-            'sl_long': instdash.get('sl_long'),
-            'tp_long': instdash.get('tp_long'),
-            'sl_short': instdash.get('sl_short'),
-            'tp_short': instdash.get('tp_short'),
+            'score': instdash_1d.get('score', 0),
+            'rsi': instdash_1d.get('rsi'),
+            'adx': instdash_1d.get('adx'),
+            'ltf_trend': instdash_1d.get('ltf_trend'),
+            'htf_trend': instdash_1d.get('htf_trend'),
+            'setup_quality': instdash_1d.get('setup_quality'),
+            'aligned': instdash_1d.get('aligned_bull') or instdash_1d.get('aligned_bear'),
+            'sl_long': instdash_1d.get('sl_long'),
+            'tp_long': instdash_1d.get('tp_long'),
+            'ext_above_ma200_pct': instdash_1d.get('ext_above_ma200_pct'),
         },
-        'whale': {
-            'score': whale_score,
-            'signal': whale_score_data['signal'] if whale_score_data else 'whale_neutral',
-            'description': whale_score_data['description'] if whale_score_data else None,
-            'oi_24h': whale_metrics.get('oi', {}).get('oi_24h_change_pct') if whale_metrics and whale_metrics.get('oi') else None,
-            'oi_7d': whale_metrics.get('oi', {}).get('oi_7d_change_pct') if whale_metrics and whale_metrics.get('oi') else None,
-            'funding': whale_metrics.get('funding', {}).get('funding_rate_pct') if whale_metrics and whale_metrics.get('funding') else None,
-            'funding_apr': whale_metrics.get('funding', {}).get('funding_rate_annualized_pct') if whale_metrics and whale_metrics.get('funding') else None,
-            'lsr': whale_metrics.get('lsr', {}).get('long_short_ratio') if whale_metrics and whale_metrics.get('lsr') else None,
-            'lsr_change': whale_metrics.get('lsr', {}).get('change_24h_pct') if whale_metrics and whale_metrics.get('lsr') else None,
-        } if whale_score_data else None,
+        'stage_1d': stage_1d,
+        'stage_1w': stage_1w,
+        'whale': whale_data,
         'composite': composite,
-        'tier': tier,
-        'action': action,
+        'tier': final_tier,
+        'action': final_action,
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
     
@@ -214,17 +150,7 @@ async def compute_matrix(
     coin_ids: list[str] | None = None,
     max_concurrent: int = 20,
 ) -> list[dict]:
-    """Compute decision matrix para lista de símbolos (paralelo controlado).
-    
-    Args:
-        symbols: ['BTC', 'ETH', ...]
-        coin_ids: ['bitcoin', 'ethereum', ...] opcional
-        max_concurrent: máximo de tarefas paralelas (default 20).
-                        Mais alto = mais rápido mas pode saturar APIs.
-    
-    Returns:
-        Lista ordenada por |composite| desc (mais conviction primeiro).
-    """
+    """Compute decision matrix em paralelo controlado."""
     coin_ids = coin_ids or [None] * len(symbols)
     semaphore = asyncio.Semaphore(max_concurrent)
     
@@ -234,23 +160,14 @@ async def compute_matrix(
     
     results = await asyncio.gather(
         *[_bounded(sym, cid) for sym, cid in zip(symbols, coin_ids)],
-        return_exceptions=True,  # Don't fail entire batch on one error
+        return_exceptions=True,
     )
     
-    # Filtra erros e Nones
-    valid = []
-    for r in results:
-        if isinstance(r, Exception):
-            log.debug('compute_matrix: row exception: %s', r)
-            continue
-        if r is not None:
-            valid.append(r)
-    
-    valid.sort(key=lambda r: abs(r['composite']), reverse=True)
+    valid = [r for r in results if r is not None and not isinstance(r, Exception)]
+    valid.sort(key=lambda r: r['composite'], reverse=True)  # mais bullish primeiro
     return valid
 
 
 def clear_cache():
-    """Clear cache (testes)."""
     global _CACHE
     _CACHE.clear()

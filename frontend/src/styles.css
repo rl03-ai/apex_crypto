@@ -1167,12 +1167,14 @@ td small { display: block; color: #8da2c0; font-size: 12px }
   background: linear-gradient(180deg, #0d1a2e, #0a1424);
   border: 1px solid #1d2d49;
   border-radius: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .matrix-table {
   width: 100%; border-collapse: collapse;
   font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   font-size: 12px;
+  min-width: 600px;
 }
 .matrix-table thead {
   background: #0a1424; border-bottom: 1px solid #1d2d49;
@@ -1352,7 +1354,137 @@ td small { display: block; color: #8da2c0; font-size: 12px }
 .matrix-setup-pill.short { color: #fb7185; border-color: rgba(251, 113, 133, 0.3) }
 
 @media (max-width: 900px) {
+  .matrix-table {
+    font-size: 11px;
+    min-width: 0;  /* allow shrink so all visible cols fit */
+  }
+  .matrix-table th { padding: 10px 6px }
+  .matrix-table td { padding: 10px 6px }
+  
+  /* Make symbol column sticky-left so always visible */
   .matrix-table th:nth-child(2),
-  .matrix-table td:nth-child(2) { display: none } /* hide price on mobile */
-  .matrix-expanded-content { grid-template-columns: 1fr }
+  .matrix-table td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    background: #0a1424;
+    z-index: 1;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.3);
+    min-width: 70px;
+  }
+  .matrix-table tbody tr.expanded td:nth-child(2) { background: #131f34 }
+  .matrix-table tbody tr:hover td:nth-child(2) { background: #131f34 }
+  
+  /* Hide chevron col (col 1) */
+  .matrix-table th:nth-child(1),
+  .matrix-table td:nth-child(1) { display: none }
+  
+  /* Hide Price col (col 3) */
+  .matrix-table th:nth-child(3),
+  .matrix-table td:nth-child(3) { display: none }
+  
+  /* Hide Whale col (col 5) — visible in expanded */
+  .matrix-table th:nth-child(5),
+  .matrix-table td:nth-child(5) { display: none }
+  
+  /* Hide Tier col (col 7) — visible in expanded */
+  .matrix-table th:nth-child(7),
+  .matrix-table td:nth-child(7) { display: none }
+  
+  .matrix-symbol { font-size: 13px }
+  
+  .matrix-composite { min-width: 56px }
+  .matrix-composite-num { font-size: 13px }
+  .matrix-composite-bar { width: 50px }
+  
+  .matrix-action {
+    padding: 4px 8px; font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+  
+  .matrix-expanded-content { grid-template-columns: 1fr; padding: 16px 12px }
+  .matrix-header h1 { font-size: 22px }
+  
+  .matrix-table tbody tr { cursor: pointer }
+}
+
+/* Even smaller screens */
+@media (max-width: 480px) {
+  .matrix-action {
+    font-size: 0;
+  }
+  .matrix-action::before {
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .matrix-action.strong-buy::before { content: 'STR BUY' }
+  .matrix-action.buy::before { content: 'BUY' }
+  .matrix-action.hold::before { content: 'HOLD' }
+  .matrix-action.sell::before { content: 'SELL' }
+  .matrix-action.strong-sell::before { content: 'STR SELL' }
+}
+
+/* ── Stage Badges ────────────────────────────────────────────────────────── */
+.stage-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px; border-radius: 7px;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: help;
+  font-family: 'Inter', sans-serif;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.stage-emoji { font-size: 11px }
+.stage-label { font-weight: 700 }
+.stage-score {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 700; opacity: 0.8;
+}
+
+.stage-accumulation {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+}
+.stage-markup-early {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #6366f1;
+}
+.stage-markup-mature {
+  background: rgba(247, 185, 85, 0.12);
+  border-color: rgba(247, 185, 85, 0.3);
+  color: #f7b955;
+}
+.stage-extended {
+  background: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.5);
+  color: #fb923c;
+}
+.stage-distribution {
+  background: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.5);
+  color: #fb923c;
+}
+.stage-markdown {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.4);
+  color: #fb7185;
+}
+.stage-chop {
+  background: rgba(159, 176, 200, 0.08);
+  border-color: rgba(159, 176, 200, 0.3);
+  color: #9fb0c8;
+}
+
+/* AVOID action style */
+.matrix-action.avoid {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.4);
+}
+
+@media (max-width: 480px) {
+  .matrix-action.avoid::before { content: 'AVOID' }
 }
