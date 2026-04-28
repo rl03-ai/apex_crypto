@@ -1488,3 +1488,259 @@ td small { display: block; color: #8da2c0; font-size: 12px }
 @media (max-width: 480px) {
   .matrix-action.avoid::before { content: 'AVOID' }
 }
+
+/* ── Risk + Strategy Pages ────────────────────────────────────────────────── */
+.risk-page, .strategy-page {
+  display: flex; flex-direction: column; gap: 24px;
+}
+
+.risk-form {
+  padding: 18px 20px;
+}
+.risk-form-row {
+  display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;
+}
+.risk-form-row label {
+  display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 140px;
+}
+.risk-form-row label span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  font-weight: 700; color: #6e88a8;
+}
+.risk-form-row input,
+.risk-form-row select {
+  background: #131f34; border: 1px solid #263a5d;
+  color: #e5eefc; padding: 10px 12px; border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+}
+.risk-form-row input:focus,
+.risk-form-row select:focus {
+  outline: none; border-color: var(--accent);
+}
+
+.risk-result-hero {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 22px;
+}
+
+.risk-stops-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.risk-stop-card {
+  padding: 14px 16px; border-radius: 12px;
+  background: #131f34; border: 1px solid #263a5d;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.risk-stop-card.entry { border-color: rgba(99, 102, 241, 0.4) }
+.risk-stop-card.sl { border-color: rgba(251, 113, 133, 0.4) }
+.risk-stop-card.tp1 { border-color: rgba(247, 185, 85, 0.4) }
+.risk-stop-card.tp2 { border-color: rgba(34, 197, 94, 0.4) }
+.risk-stop-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  font-weight: 700; color: #6e88a8;
+}
+.risk-stop-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px; font-weight: 800; color: #e5eefc;
+  letter-spacing: -0.02em;
+}
+.risk-stop-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 700;
+}
+.risk-stop-pct.pos { color: #22c55e }
+.risk-stop-pct.neg { color: #fb7185 }
+.risk-stop-r {
+  font-size: 10px; color: #9fb0c8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.risk-position-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.risk-position-stat {
+  padding: 14px 16px; border-radius: 12px;
+  background: #131f34; border: 1px solid #263a5d;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.risk-position-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  font-weight: 700; color: #6e88a8;
+}
+.risk-position-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px; font-weight: 800; color: #e5eefc;
+  letter-spacing: -0.02em;
+}
+.risk-position-value.bull { color: #22c55e }
+.risk-position-value.bear { color: #fb7185 }
+.risk-position-sub {
+  font-size: 11px; color: #9fb0c8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Strategy Picks */
+.strategy-picks {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px;
+}
+
+.pick-card {
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.pick-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.pick-symbol {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px; font-weight: 700;
+}
+.pick-meta {
+  display: flex; gap: 8px; align-items: center; margin-top: 6px;
+}
+.pick-sector {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: #9fb0c8; font-weight: 600;
+  padding: 3px 8px; background: #131f34; border-radius: 6px;
+  border: 1px solid #263a5d;
+}
+.pick-alloc {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
+}
+.pick-alloc-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px; font-weight: 800; color: #22c55e;
+  text-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+  letter-spacing: -0.02em;
+}
+.pick-alloc-usd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; color: #9fb0c8;
+}
+
+.pick-stages {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding-bottom: 12px; border-bottom: 1px solid #182842;
+}
+.stage-pill {
+  font-size: 10px; padding: 4px 10px; border-radius: 6px;
+  background: #131f34; border: 1px solid #263a5d;
+  color: #9fb0c8; font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.pick-dca {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pick-dca-mode {
+  font-size: 13px; font-weight: 700; color: #e5eefc;
+  letter-spacing: 0.04em;
+}
+.pick-dca-note {
+  font-size: 12px; color: #9fb0c8; font-style: italic;
+  line-height: 1.5;
+}
+.pick-dca-breakdown {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; background: #0a1424;
+  border-radius: 8px; border: 1px solid #182842;
+}
+.pick-dca-row {
+  display: flex; justify-content: space-between;
+  font-size: 12px;
+}
+.pick-dca-row span { color: #9fb0c8 }
+.pick-dca-row strong {
+  font-family: 'JetBrains Mono', monospace;
+  color: #e5eefc; font-weight: 700;
+}
+
+/* Strategy Sectors */
+.strategy-sectors {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+}
+
+.sector-card {
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+}
+.sector-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; opacity: 0.7;
+}
+.sector-card.sector-over::before { background: linear-gradient(90deg, transparent, #22c55e, transparent) }
+.sector-card.sector-under::before { background: linear-gradient(90deg, transparent, #fb7185, transparent) }
+.sector-card.sector-neutral::before { background: linear-gradient(90deg, transparent, #9fb0c8, transparent) }
+
+.sector-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.sector-name {
+  font-size: 18px; font-weight: 700;
+  color: #e5eefc;
+}
+.sector-meta {
+  font-size: 11px; color: #9fb0c8;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 4px;
+}
+.sector-signal {
+  padding: 5px 11px; border-radius: 6px;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.sector-signal.over { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4) }
+.sector-signal.under { background: rgba(251, 113, 133, 0.15); color: #fb7185; border: 1px solid rgba(251, 113, 133, 0.4) }
+.sector-signal.neutral { background: #131f34; color: #9fb0c8; border: 1px solid #263a5d }
+
+.sector-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding-bottom: 12px; border-bottom: 1px solid #182842;
+  margin-bottom: 12px;
+}
+.sector-stat {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sector-stat-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: #6e88a8; font-weight: 600;
+}
+.sector-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px; font-weight: 700;
+}
+.sector-stat-value.bull { color: #22c55e }
+.sector-stat-value.bear { color: #fb7185 }
+
+.sector-picks-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: #6e88a8; font-weight: 700;
+}
+.sector-picks-list {
+  display: flex; flex-direction: column; gap: 4px; margin-top: 8px;
+}
+.sector-pick {
+  display: flex; gap: 10px; align-items: center;
+  padding: 6px 8px; background: #131f34; border-radius: 6px;
+  font-size: 12px;
+}
+.sector-pick-sym {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; flex: 1;
+}
+.sector-pick-comp {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+.sector-pick-comp.pos { color: #22c55e }
+.sector-pick-comp.neg { color: #fb7185 }
+
+@media (max-width: 900px) {
+  .risk-stops-grid { grid-template-columns: repeat(2, 1fr) }
+  .risk-position-grid { grid-template-columns: 1fr 1fr }
+  .strategy-picks { grid-template-columns: 1fr }
+  .strategy-sectors { grid-template-columns: 1fr }
+  .risk-form-row { flex-direction: column; align-items: stretch }
+  .risk-form-row label { min-width: 100% }
+}

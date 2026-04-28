@@ -195,3 +195,100 @@ export const fetchMatrix = (params: {
   if (params.symbols) qs.set('symbols', params.symbols)
   return api.get<MatrixResponse>(`/matrix?${qs.toString()}`)
 }
+
+// ── Risk + Strategy ───────────────────────────────────────────────────────────
+export interface PositionSize {
+  recommended: boolean
+  position_usd?: number
+  coins?: number
+  risk_usd?: number
+  risk_pct?: number
+  allocated_pct?: number
+  tier_mult?: number
+  stage_mult?: number
+  warnings?: string[]
+  reason?: string
+}
+
+export interface StopLevels {
+  recommended: boolean
+  entry?: number
+  sl?: number
+  tp1?: number
+  tp2?: number
+  sl_pct?: number
+  tp1_pct?: number
+  tp2_pct?: number
+  r_multiple_1?: number
+  r_multiple_2?: number
+  note?: string
+  reason?: string
+}
+
+export interface PositionResult {
+  symbol: string
+  price: number
+  stage: string
+  tier: string
+  action: string
+  profile: string
+  stops: StopLevels
+  position: PositionSize | null
+}
+
+export interface StrategyPick {
+  symbol: string
+  sector: string
+  tier: string
+  composite: number
+  action: string
+  stage_1d: string
+  stage_1w: string | null
+  alloc_pct: number
+  alloc_usd: number
+  lump_sum_usd: number
+  dca_total_usd: number
+  dca_weekly_usd: number
+  dca_mode: 'lump_sum' | 'dca' | 'split' | 'wait'
+  dca_weeks: number
+  dca_note: string
+}
+
+export interface SectorData {
+  sector: string
+  count: number
+  avg_score: number
+  bullish_count: number
+  bullish_pct: number
+  extended_count: number
+  extended_pct: number
+  signal: 'OVERWEIGHT' | 'NEUTRAL' | 'UNDERWEIGHT'
+  top_picks: { symbol: string; composite: number; tier: string; action: string }[]
+}
+
+export interface StrategyResponse {
+  profile: string
+  portfolio_usd: number
+  total_alloc_pct: number
+  remaining_cash_pct: number
+  remaining_cash_usd: number
+  top_picks: StrategyPick[]
+  sector_rotation: {
+    rotation_signal: string | null
+    sectors: SectorData[]
+  }
+}
+
+export const fetchPositionSize = (symbol: string, portfolio_usd: number, profile = 'aggressive') => {
+  const qs = new URLSearchParams({ portfolio_usd: String(portfolio_usd), profile })
+  return api.get<PositionResult>(`/risk/position-size?symbol=${symbol}&${qs.toString()}`)
+}
+
+export const fetchStrategy = (portfolio_usd: number, profile = 'aggressive', limit = 100) => {
+  const qs = new URLSearchParams({
+    portfolio_usd: String(portfolio_usd),
+    profile,
+    limit: String(limit),
+  })
+  return api.get<StrategyResponse>(`/strategy?${qs.toString()}`)
+}
