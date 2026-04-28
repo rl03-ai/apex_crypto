@@ -81,35 +81,80 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     stage_1d = detect_stage(instdash_1d, whale_data)
     stage_1w = detect_stage(instdash_1w, None) if instdash_1w else None
     
-    # Composite final: 1w tem mais peso (60%) porque holds são longos
+    # ════════════════════════════════════════════════════════════════════════
+    # CROSS-TF COHERENCE GATEKEEPING
+    # Princípio: se 1w está bearish/extended, NUNCA dar BUY mesmo se 1d for bull.
+    # 1w domina porque holds são semanas/meses.
+    # ════════════════════════════════════════════════════════════════════════
+    
+    BEARISH_STAGES = {'MARKDOWN', 'DISTRIBUTION', 'EXTENDED'}
+    BULLISH_STAGES = {'ACCUMULATION', 'MARKUP_EARLY', 'MARKUP_MATURE'}
+    
+    # Composite: se 1w bearish, força composite negativo (ou no máximo zero)
     if stage_1w:
-        composite = round((stage_1w['score'] * 0.6 + stage_1d['score'] * 0.4), 2)
+        if stage_1w['stage'] in BEARISH_STAGES:
+            # 1w bearish → cap composite a min(1d_score, 1w_score)
+            composite = min(stage_1d['score'], stage_1w['score'])
+            # Se 1d é bull mas 1w é bear → composite pode ser ligeiramente negativo
+            if composite > 0:
+                composite = -1  # forçar negativo: estrutura macro bear
+        else:
+            # Ambos OK → ponderação normal (1w domina com 60%)
+            composite = round((stage_1w['score'] * 0.6 + stage_1d['score'] * 0.4), 2)
     else:
         composite = stage_1d['score']
     
-    # Tier final: usa o mais restritivo entre 1d e 1w
-    tier_order = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
-    if stage_1w and tier_order[stage_1w['tier']] >= tier_order[stage_1d['tier']]:
-        # 1w domina se tier alto
-        final_tier = stage_1w['tier'] if stage_1w['stage'] in ('ACCUMULATION', 'MARKUP_EARLY') else stage_1d['tier']
-    else:
-        final_tier = stage_1d['tier']
+    composite = round(composite, 2)
     
-    # Action: regras combinadas
+    # ════════════════════════════════════════════════════════════════════════
+    # FINAL ACTION — strict cross-TF rules
+    # ════════════════════════════════════════════════════════════════════════
+    
     action_1d = stage_1d['action']
     action_1w = stage_1w['action'] if stage_1w else action_1d
     
-    # Convergência: ambos BUY → STRONG BUY
-    if action_1d == 'STRONG BUY' and action_1w in ('STRONG BUY', 'BUY'):
-        final_action = 'STRONG BUY'
-    elif action_1d == 'BUY' and action_1w == 'STRONG BUY':
-        final_action = 'STRONG BUY'
-    elif action_1w == 'AVOID':  # 1w é prioridade — se HTF avoid, evita
+    # REGRA: 1w MARKDOWN/EXTENDED → AVOID, sem excepções
+    if stage_1w and stage_1w['stage'] in BEARISH_STAGES:
+        if stage_1w['stage'] == 'MARKDOWN' and stage_1w['score'] <= -5:
+            final_action = 'AVOID'
+        elif stage_1w['stage'] == 'EXTENDED':
+            final_action = 'AVOID'
+        else:
+            final_action = 'WATCH'  # MARKDOWN moderado ou DISTRIBUTION
+    
+    # REGRA: 1d EXTENDED → AVOID
+    elif stage_1d['stage'] == 'EXTENDED':
         final_action = 'AVOID'
-    elif action_1d in ('STRONG BUY', 'BUY') and action_1w not in ('AVOID',):
+    
+    # REGRA: convergência bull em ambos TFs → STRONG BUY
+    elif (action_1d == 'STRONG BUY' and action_1w in ('STRONG BUY', 'BUY')) or \
+         (action_1d == 'BUY' and action_1w == 'STRONG BUY'):
+        final_action = 'STRONG BUY'
+    
+    # REGRA: 1d bull + 1w bull (mas nenhum strong) → BUY
+    elif action_1d in ('STRONG BUY', 'BUY') and action_1w in ('STRONG BUY', 'BUY', 'HOLD'):
         final_action = action_1d
+    
+    # REGRA: 1d bull mas 1w lateral/watch → HOLD (não BUY agressivo)
+    elif action_1d in ('STRONG BUY', 'BUY') and action_1w == 'WATCH':
+        final_action = 'HOLD'
+    
     else:
         final_action = action_1w if action_1w else action_1d
+    
+    # Tier final: o mais restritivo dos dois TFs
+    tier_order = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
+    if stage_1w:
+        # Se 1w é bearish, tier do 1w domina (puxa para baixo)
+        if stage_1w['stage'] in BEARISH_STAGES:
+            final_tier = stage_1w['tier']  # tipicamente D
+        else:
+            # Pega no menor tier (mais conservador)
+            tier_1d_val = tier_order.get(stage_1d['tier'], 0)
+            tier_1w_val = tier_order.get(stage_1w['tier'], 0)
+            final_tier = stage_1d['tier'] if tier_1d_val < tier_1w_val else stage_1w['tier']
+    else:
+        final_tier = stage_1d['tier']
     
     result = {
         'symbol': binance_sym,
@@ -127,6 +172,8 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
             'sl_long': instdash_1d.get('sl_long'),
             'tp_long': instdash_1d.get('tp_long'),
             'ext_above_ma200_pct': instdash_1d.get('ext_above_ma200_pct'),
+            'struct_bias': instdash_1d.get('struct_bias', 0),
+            'last_event': (instdash_1d.get('structure') or {}).get('last_event', 'none'),
         },
         'stage_1d': stage_1d,
         'stage_1w': stage_1w,

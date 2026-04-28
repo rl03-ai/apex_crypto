@@ -144,6 +144,8 @@ export interface MatrixRow {
     sl_long: number | null
     tp_long: number | null
     ext_above_ma200_pct: number | null
+    struct_bias: number  // 1=bull, -1=bear, 0=neutral
+    last_event: string  // 'choch_bull' | 'bos_bull' | 'choch_bear' | 'bos_bear' | 'none'
   }
   stage_1d: StageData
   stage_1w: StageData | null

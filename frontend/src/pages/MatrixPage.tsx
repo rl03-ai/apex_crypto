@@ -299,6 +299,17 @@ function MatrixRowComponent({ row, expanded, onToggle }: {
               <div className="matrix-expanded-section">
                 <h3>📊 Indicators</h3>
                 <div className="matrix-expanded-row">
+                  <span>Structure</span>
+                  <strong className={row.instdash.struct_bias === 1 ? 'pos' : row.instdash.struct_bias === -1 ? 'neg' : ''}>
+                    {row.instdash.struct_bias === 1 ? '🟢 BULLISH' : row.instdash.struct_bias === -1 ? '🔴 BEARISH' : '⚪ NEUTRAL'}
+                    {row.instdash.last_event !== 'none' && (
+                      <span style={{ fontSize: 10, color: '#9fb0c8', marginLeft: 6, fontFamily: 'JetBrains Mono, monospace' }}>
+                        ({row.instdash.last_event})
+                      </span>
+                    )}
+                  </strong>
+                </div>
+                <div className="matrix-expanded-row">
                   <span>RSI · ADX</span>
                   <strong>{fmt(row.instdash.rsi, 1)} · {fmt(row.instdash.adx, 1)}</strong>
                 </div>

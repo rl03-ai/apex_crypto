@@ -1,10 +1,13 @@
-"""Stage Detector — para holds de semanas/meses.
+"""Stage Detector v3 — STRICT structure gatekeeping.
 
-Substitui composite anterior. Detecta em que fase macro está o ativo:
-  ACCUMULATION → MARKUP EARLY → MARKUP MATURE → EXTENDED → DISTRIBUTION → MARKDOWN → ...
+Princípio: estrutura é PRIMEIRA — se Pine Script mostra estrutura bearish,
+NENHUM stage bullish é permitido, independentemente de squeeze/RSI/whale.
 
-Para holds de semanas/meses, queremos entrar em ACCUMULATION ou MARKUP EARLY.
-EXTENDED é um warning para evitar entradas.
+Hierarquia de validação:
+  1. struct_bias do analyser (CHoCH/BOS confirmados) — GATEKEEPER
+  2. HTF trend (1w direction)
+  3. LTF trend (1d direction)
+  4. Indicadores (squeeze, RSI, etc.) — só refinam, não inverteam
 """
 import logging
 from typing import Literal
@@ -16,18 +19,22 @@ Stage = Literal['ACCUMULATION', 'MARKUP_EARLY', 'MARKUP_MATURE', 'EXTENDED',
 
 
 def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, int, list[str]]:
-    """Classifica stage e devolve score raw + reasons.
+    """Classifica stage com STRICT structure gatekeeping.
     
-    Score range: -10 a +10
+    REGRA #1: struct_bias = -1 (bearish CHoCH/BOS recente) → MARKDOWN ou CHOP
+              Nunca ACCUM/EARLY/MATURE com estrutura bearish
     
-    Returns:
-        (stage, score, reasons)
+    REGRA #2: HTF trend = BAIXA → não permitir MARKUP_EARLY ou MARKUP_MATURE
+    
+    REGRA #3: LTF trend = BAIXA → não permitir MARKUP_EARLY (precisa LTF up)
+    
+    REGRA #4: ACCUMULATION só permitido se struct_bias >= 0 e HTF != BAIXA
     """
     reasons = []
     
     # Inputs
     rsi = instdash.get('rsi') or 50
-    htf_trend = instdash.get('htf_trend', 'LATERAL')  # ALTA / BAIXA / LATERAL
+    htf_trend = instdash.get('htf_trend', 'LATERAL')
     ltf_trend = instdash.get('ltf_trend', 'LATERAL')
     aligned_bull = instdash.get('aligned_bull', False)
     aligned_bear = instdash.get('aligned_bear', False)
@@ -43,7 +50,12 @@ def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, i
     price_change_7d = instdash.get('price_change_7d_pct', 0)
     atr_pct = instdash.get('atr_pct', 3)
     
-    above_vwap = instdash.get('above_vwap', False)
+    # ESTRUTURA — gatekeeper principal
+    struct_bias = instdash.get('struct_bias', 0)  # 1=bull, -1=bear, 0=neutral
+    structure = instdash.get('structure', {})
+    last_event = structure.get('last_event', 'none')
+    choch_bear_active = structure.get('choch_bear', False)
+    bos_bear_active = structure.get('bos_bear', False)
     
     # Whale signals
     whale_oi_7d = 0
@@ -54,18 +66,51 @@ def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, i
         whale_funding = whale.get('funding') or 0
         whale_score = whale.get('score') or 0
     
-    # ── Detect stages, ordem de prioridade ──────────────────────────────
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #1: STRUCTURE GATEKEEPER
+    # Se estrutura é bearish (struct_bias=-1) OU CHoCH/BOS bear recente,
+    # NUNCA permitir stages bullish. É MARKDOWN ou CHOP.
+    # ════════════════════════════════════════════════════════════════════════
     
-    # 🔴 MARKDOWN — HTF bear
-    if htf_trend == 'BAIXA' and aligned_bear:
-        reasons.append('HTF bear trend confirmed')
-        score = -7
-        if rsi < 30:
-            reasons.append(f'RSI oversold ({rsi:.0f}) — potential bounce')
-            score = -5
-        return 'MARKDOWN', score, reasons
+    structure_is_bearish = struct_bias == -1 or last_event in ('choch_bear', 'bos_bear')
     
-    # 🟠 EXTENDED — esticado, evitar entradas
+    if structure_is_bearish:
+        reasons.append(f'⛔ Estrutura bearish: {last_event} confirmado')
+        if htf_trend == 'BAIXA':
+            reasons.append('HTF trend bearish reforça')
+            score = -7
+            if rsi < 30:
+                reasons.append(f'RSI oversold ({rsi:.0f}) — possível bounce mas estrutura ainda bear')
+                score = -5
+            return 'MARKDOWN', score, reasons
+        else:
+            # Estrutura bear mas HTF não confirma ainda → CHOP defensivo
+            reasons.append('HTF não confirma bearish — chop defensivo')
+            return 'CHOP', -2, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #2: HTF GATEKEEPER (bear)
+    # Se HTF é BAIXA, não permitir MARKUP. Pode ser MARKDOWN ou CHOP.
+    # ════════════════════════════════════════════════════════════════════════
+    
+    if htf_trend == 'BAIXA':
+        reasons.append('HTF trend = BAIXA')
+        if aligned_bear or ltf_trend == 'BAIXA':
+            reasons.append('LTF + HTF alignment bear')
+            score = -6
+            if rsi < 30:
+                reasons.append(f'RSI oversold ({rsi:.0f})')
+                score = -4
+            return 'MARKDOWN', score, reasons
+        else:
+            # HTF bear mas LTF lateral/bull — bounce em downtrend
+            reasons.append('LTF tenta bounce mas HTF dominante bear')
+            return 'CHOP', -3, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #3: EXTENDED check (esticado, evitar mesmo se trend up)
+    # ════════════════════════════════════════════════════════════════════════
+    
     extended_flags = []
     if ext_above_ma200 > 60:
         extended_flags.append(f'Preço {ext_above_ma200:.0f}% acima MA200d')
@@ -81,35 +126,53 @@ def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, i
     if len(extended_flags) >= 2:
         reasons.extend(extended_flags)
         reasons.append('⚠ AVOID: setup esticado')
-        score = -2 if htf_trend == 'ALTA' else -5
+        score = -2
         return 'EXTENDED', score, reasons
     
-    # 🟢 ACCUMULATION — silent accumulation
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #4: ACCUMULATION
+    # Só permitido se: struct_bias >= 0 (não bear) e HTF != BAIXA
+    # E vol comprimida + preço lateral
+    # ════════════════════════════════════════════════════════════════════════
+    
     is_chop = atr_pct < 4 and -10 <= price_change_7d <= 10
     silent_accum = squeeze and is_chop and abs(dist_ma21) < 5
     whale_quiet_buy = whale_oi_7d > 8 and atr_pct < 5 and abs(price_change_7d) < 8
     
-    if silent_accum or whale_quiet_buy:
+    if (silent_accum or whale_quiet_buy) and struct_bias >= 0:
         reasons.append('Silent accumulation: vol comprimida, OI subindo')
         if squeeze:
             reasons.append('BB Squeeze active')
         if whale_oi_7d > 8:
             reasons.append(f'Whale OI 7d: +{whale_oi_7d:.1f}%')
-        score = 8
-        if htf_trend == 'ALTA':
-            reasons.append('HTF bull trend confirms accumulation')
+        if struct_bias == 1:
+            reasons.append('Estrutura bullish confirma')
             score = 10
+        else:
+            reasons.append('Estrutura neutra (sem CHoCH bull confirmado)')
+            score = 7  # menor sem confirmação estrutural
+        if htf_trend == 'ALTA':
+            reasons.append('HTF bull trend')
         return 'ACCUMULATION', score, reasons
     
-    # 🔵 MARKUP EARLY — acabou breakout, ainda perto MA21
-    early_breakout = squeeze_release and vol_burst
-    early_pullback = pullback_ma21 and aligned_bull and rsi < 65
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #5: MARKUP_EARLY
+    # Requer: struct_bias = 1 OU last_event = choch_bull/bos_bull
+    # E LTF trend ALTA
+    # ════════════════════════════════════════════════════════════════════════
+    
+    structure_confirms_bull = struct_bias == 1 or last_event in ('choch_bull', 'bos_bull')
+    
+    early_breakout = squeeze_release and vol_burst and structure_confirms_bull
+    early_pullback = pullback_ma21 and aligned_bull and rsi < 65 and structure_confirms_bull
     
     if early_breakout or early_pullback:
         if early_breakout:
             reasons.append('Squeeze breakout + volume burst')
         if early_pullback:
             reasons.append('Pullback to MA21 in trend')
+        if structure_confirms_bull:
+            reasons.append(f'Estrutura confirma: {last_event}')
         if aligned_bull:
             reasons.append('LTF + HTF alignment bull')
         score = 7
@@ -118,11 +181,16 @@ def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, i
             score = 9
         return 'MARKUP_EARLY', score, reasons
     
-    # 🟡 MARKUP MATURE — em trend bull mas evoluído
-    if htf_trend == 'ALTA' and ltf_trend == 'ALTA':
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #6: MARKUP_MATURE
+    # HTF + LTF ambos ALTA, sem estrutura bear
+    # ════════════════════════════════════════════════════════════════════════
+    
+    if htf_trend == 'ALTA' and ltf_trend == 'ALTA' and not structure_is_bearish:
         reasons.append('HTF + LTF trend bull')
+        if structure_confirms_bull:
+            reasons.append(f'Estrutura: {last_event}')
         score = 4
-        # Penaliza se já está esticado
         if ext_above_ma200 > 30:
             reasons.append(f'Já {ext_above_ma200:.0f}% acima MA200d')
             score = 2
@@ -133,23 +201,26 @@ def _classify_stage(instdash: dict, whale: dict | None = None) -> tuple[Stage, i
             reasons.append(f'Whale supporting (+{whale_score})')
         return 'MARKUP_MATURE', score, reasons
     
-    # ⚪ CHOP — sem direcção clara
-    reasons.append('Sem direcção HTF clara')
+    # ════════════════════════════════════════════════════════════════════════
+    # REGRA #7: CHOP — fallback
+    # ════════════════════════════════════════════════════════════════════════
+    
+    reasons.append('Sem direcção HTF clara, sem estrutura confirmada')
     score = 0
-    if whale_oi_7d > 5:
+    if whale_oi_7d > 5 and struct_bias >= 0:
         reasons.append(f'Whale acumulando lentamente (OI +{whale_oi_7d:.0f}% 7d)')
         score = 2
-    if rsi < 40:
+    if rsi < 40 and struct_bias >= 0:
         reasons.append(f'RSI baixo ({rsi:.0f}) — oversold em chop')
         score += 1
     return 'CHOP', score, reasons
 
 
 def _stage_action(stage: Stage, score: int) -> str:
-    """Decide action baseada em stage + score."""
-    if stage == 'ACCUMULATION' and score >= 7:
+    """Action baseado em stage + score."""
+    if stage == 'ACCUMULATION' and score >= 8:
         return 'STRONG BUY'
-    if stage == 'MARKUP_EARLY' and score >= 6:
+    if stage == 'MARKUP_EARLY' and score >= 7:
         return 'STRONG BUY'
     if stage in ('ACCUMULATION', 'MARKUP_EARLY'):
         return 'BUY'
@@ -158,16 +229,16 @@ def _stage_action(stage: Stage, score: int) -> str:
     if stage == 'MARKUP_MATURE':
         return 'HOLD'
     if stage == 'EXTENDED':
-        return 'AVOID'  # Special: not SELL, just don't enter
+        return 'AVOID'
     if stage == 'MARKDOWN' and score <= -5:
         return 'AVOID'
     if stage == 'MARKDOWN':
-        return 'WATCH'  # Wait for reversal
+        return 'WATCH'
     return 'WATCH'
 
 
 def _stage_tier(stage: Stage, score: int) -> str:
-    """Tier S/A/B/C/D — agora baseado em conviction de stage."""
+    """Tier S/A/B/C/D."""
     if stage == 'ACCUMULATION' and score >= 9:
         return 'S'
     if stage in ('ACCUMULATION', 'MARKUP_EARLY') and score >= 7:
@@ -178,27 +249,11 @@ def _stage_tier(stage: Stage, score: int) -> str:
         return 'B'
     if stage == 'MARKUP_MATURE':
         return 'C'
-    if stage in ('EXTENDED', 'MARKDOWN', 'CHOP'):
-        return 'D'
-    return 'C'
+    return 'D'
 
 
 def detect_stage(instdash: dict, whale: dict | None = None) -> dict:
-    """Main entry point — detecta stage + score + tier + action.
-    
-    Args:
-        instdash: output de analyse_symbol()
-        whale: whale_score data (opcional)
-    
-    Returns:
-        {
-            'stage': 'ACCUMULATION',
-            'score': 8,           # -10 a +10
-            'tier': 'S',
-            'action': 'STRONG BUY',
-            'reasons': [...]
-        }
-    """
+    """Main entry — STRICT structure gatekeeping."""
     stage, score, reasons = _classify_stage(instdash, whale)
     score = max(-10, min(10, score))
     
@@ -210,15 +265,3 @@ def detect_stage(instdash: dict, whale: dict | None = None) -> dict:
         'action': _stage_action(stage, score),
         'reasons': reasons,
     }
-
-
-def stage_emoji(stage: Stage) -> str:
-    return {
-        'ACCUMULATION': '🟢',
-        'MARKUP_EARLY': '🔵',
-        'MARKUP_MATURE': '🟡',
-        'EXTENDED': '🟠',
-        'DISTRIBUTION': '🟠',
-        'MARKDOWN': '🔴',
-        'CHOP': '⚪',
-    }.get(stage, '⚪')
