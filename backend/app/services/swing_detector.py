@@ -54,7 +54,7 @@ def _classify_swing(
     p_bos_bull = p_structure.get('bos_bull', False)
     
     # Inputs fast (1h)
-    f_rsi = fast.get('rsi') or 50 if fast else 50
+    f_rsi = (fast.get('rsi') or 50) if fast else 50
     f_struct_bias = fast.get('struct_bias', 0) if fast else 0
     f_aligned_bull = fast.get('aligned_bull', False) if fast else False
     
@@ -73,7 +73,7 @@ def _classify_swing(
     
     primary_struct_bear = p_struct_bias == -1 or p_last_event in ('choch_bear', 'bos_bear')
     
-    if primary_struct_bear:
+    if primary_struct_bear and not (p_rsi < 30 and p_choch_bull):
         reasons.append(f'⛔ Estrutura primary bearish ({p_last_event})')
         score = -6
         if m_htf_trend == 'BAIXA':
@@ -104,7 +104,7 @@ def _classify_swing(
             return 'EXHAUSTION', -4, reasons
         return 'EXHAUSTION', -2, reasons
     
-    if m_ext > 80:
+    if m_ext > 25:
         reasons.append(f'Macro {m_ext:.0f}% above MA200 — exhaustion zone')
         return 'EXHAUSTION', -3, reasons
     
@@ -113,9 +113,9 @@ def _classify_swing(
     # Highest probability swing setup
     # ════════════════════════════════════════════════════════════════════════
     
-    structure_supports = p_struct_bias == 1 or p_choch_bull or p_bos_bull
+    structure_supports = (p_struct_bias == 1 and (p_choch_bull or p_bos_bull))
     
-    if p_squeeze_release and p_vol_burst and structure_supports:
+    if p_squeeze_release and p_vol_burst and structure_supports and p_struct_bias == 1:
         reasons.append('💥 Squeeze breakout + volume burst')
         if p_choch_bull:
             reasons.append('CHoCH bullish confirma reversal')
@@ -159,7 +159,7 @@ def _classify_swing(
         50 < p_rsi < 65         # RSI cross em zona neutra
         and p_macd_bull
         and not primary_struct_bear
-        and structure_supports
+        and structure_supports and p_struct_bias == 1
     )
     
     if momentum_kicker:
@@ -167,7 +167,7 @@ def _classify_swing(
         if structure_supports:
             reasons.append(f'Estrutura: {p_last_event}')
         score = 5
-        if m_htf_trend == 'ALTA' and structure_supports:
+        if m_htf_trend == 'ALTA' and structure_supports and p_struct_bias == 1:
             reasons.append('Macro bull + estrutura confirma')
             score = 7
         if f_aligned_bull:
@@ -203,7 +203,7 @@ def _classify_swing(
     
     reasons.append('Sem setup swing claro')
     score = 0
-    if p_rsi < 35 and structure_supports:
+    if p_rsi < 35 and structure_supports and p_struct_bias == 1:
         reasons.append(f'RSI baixo ({p_rsi:.0f}) — possível early reversal mas sem trigger')
         score = 1
     if m_htf_trend == 'ALTA':
@@ -278,7 +278,7 @@ def detect_swing(
     
     # Macro: se não fornecido, usa primary como fallback
     if not macro:
-        macro = primary
+        macro = {}
     
     stage, score, reasons = _classify_swing(primary, fast or {}, macro, mode, whale)
     score = max(-10, min(10, score))
