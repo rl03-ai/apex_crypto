@@ -1744,3 +1744,41 @@ td small { display: block; color: #8da2c0; font-size: 12px }
   .risk-form-row { flex-direction: column; align-items: stretch }
   .risk-form-row label { min-width: 100% }
 }
+
+/* ── Swing Stage Badges (extension) ──────────────────────────────────────── */
+.stage-breakout {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+}
+.stage-pullback {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #6366f1;
+}
+.stage-momentum {
+  background: rgba(247, 185, 85, 0.12);
+  border-color: rgba(247, 185, 85, 0.3);
+  color: #f7b955;
+}
+.stage-reversal {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #a855f7;
+}
+.stage-exhaustion {
+  background: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.5);
+  color: #fb923c;
+}
+.stage-bearish {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.4);
+  color: #fb7185;
+}
+.stage-no-setup {
+  background: rgba(159, 176, 200, 0.08);
+  border-color: rgba(159, 176, 200, 0.3);
+  color: #9fb0c8;
+}

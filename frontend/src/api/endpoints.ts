@@ -286,6 +286,103 @@ export const fetchPositionSize = (symbol: string, portfolio_usd: number, profile
   return api.get<PositionResult>(`/risk/position-size?symbol=${symbol}&${qs.toString()}`)
 }
 
+// ── Swing Matrix ──────────────────────────────────────────────────────────────
+export interface SwingStage {
+  stage: 'BREAKOUT' | 'PULLBACK' | 'MOMENTUM' | 'REVERSAL' | 'EXHAUSTION' | 'NO_SETUP' | 'BEARISH'
+  stage_label: string
+  mode: 'short' | 'medium'
+  score: number
+  tier: 'S' | 'A' | 'B' | 'C' | 'D'
+  action: string
+  reasons: string[]
+}
+
+export interface SwingTFData {
+  tf: string
+  rsi?: number | null
+  adx?: number | null
+  ltf_trend?: string | null
+  htf_trend?: string | null
+  struct_bias: number
+  last_event?: string
+  squeeze?: boolean
+  squeeze_release?: boolean
+  macd_bullish?: boolean
+  aligned_bull?: boolean
+  atr_pct?: number
+  ext_above_ma200_pct?: number
+}
+
+export interface SwingRow {
+  symbol: string
+  coin_id: string | null
+  mode: 'short' | 'medium'
+  price: number
+  change_24h: number
+  primary_tf: string
+  fast_tf: string
+  macro_tf: string
+  primary: SwingTFData
+  fast: SwingTFData | null
+  macro: SwingTFData | null
+  swing: SwingStage
+  whale: {
+    score: number
+    signal: string
+    description: string | null
+    oi_24h: number | null
+    oi_7d: number | null
+    funding: number | null
+  } | null
+  stops: {
+    entry: number
+    sl: number
+    tp1: number
+    tp2: number
+    sl_pct: number
+    tp1_pct: number
+    tp2_pct: number
+    r_multiple_1: number
+    r_multiple_2: number
+  } | null
+  composite: number
+  tier: string
+  action: string
+}
+
+export interface SwingResponse {
+  count: number
+  requested: number
+  mode: 'short' | 'medium'
+  stats: {
+    breakouts: number
+    pullbacks: number
+    momentum: number
+    reversal: number
+    avoid: number
+    tier_s: number
+    tier_a: number
+  }
+  data: SwingRow[]
+  timestamp: number
+}
+
+export const fetchSwing = (params: {
+  mode?: 'short' | 'medium'
+  min_tier?: string
+  action?: string
+  stage?: string
+  limit?: number
+} = {}) => {
+  const qs = new URLSearchParams()
+  if (params.mode) qs.set('mode', params.mode)
+  if (params.min_tier) qs.set('min_tier', params.min_tier)
+  if (params.action) qs.set('action', params.action)
+  if (params.stage) qs.set('stage', params.stage)
+  if (params.limit) qs.set('limit', String(params.limit))
+  return api.get<SwingResponse>(`/swing?${qs.toString()}`)
+}
+
 export const fetchStrategy = (portfolio_usd: number, profile = 'aggressive', limit = 100) => {
   const qs = new URLSearchParams({
     portfolio_usd: String(portfolio_usd),
