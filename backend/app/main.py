@@ -12,6 +12,7 @@ from app.api.routes import whales as whales_router
 from app.api.routes import decision_matrix as matrix_router
 from app.api.routes import risk_strategy as risk_strategy_router
 from app.api.routes import swing as swing_router
+from app.api.routes import intraday as intraday_router
 from app.core.config import get_settings
 from app.core.database import Base, engine
 
@@ -75,6 +76,7 @@ app.include_router(signals_router.router, prefix='/signals', tags=['signals'])
 app.include_router(whales_router.router,  tags=['whales'])
 app.include_router(matrix_router.router,  tags=['matrix'])
 app.include_router(swing_router.router,   tags=['swing'])
+app.include_router(intraday_router.router, tags=['intraday'])
 app.include_router(risk_strategy_router.risk_router,     tags=['risk'])
 app.include_router(risk_strategy_router.strategy_router, tags=['strategy'])
 app.include_router(debug.router,      prefix='/debug',       tags=['debug'])

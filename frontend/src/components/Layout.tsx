@@ -60,6 +60,9 @@ export function Layout() {
           <NavLink to="/swing">
             <span className="nav-icon">📈</span> Swing
           </NavLink>
+          <NavLink to="/intraday">
+            <span className="nav-icon">⚡</span> Intraday
+          </NavLink>
           <NavLink to="/strategy">
             <span className="nav-icon">🎯</span> Strategy
           </NavLink>

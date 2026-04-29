@@ -383,6 +383,110 @@ export const fetchSwing = (params: {
   return api.get<SwingResponse>(`/swing?${qs.toString()}`)
 }
 
+// ── Intraday Matrix ───────────────────────────────────────────────────────────
+export interface IntradayStage {
+  stage: 'TREND_BO' | 'VWAP_RECLAIM' | 'MICRO_PULLBACK' | 'LIQ_SWEEP'
+       | 'SQUEEZE_BO' | 'EXHAUSTION' | 'BEARISH' | 'NO_SETUP'
+  stage_label: string
+  mode: 'scalping' | 'day'
+  score: number
+  tier: 'S' | 'A' | 'B' | 'C' | 'D'
+  action: string
+  reasons: string[]
+  can_hold_overnight: boolean
+}
+
+export interface IntradayTFData {
+  tf: string
+  rsi?: number | null
+  adx?: number | null
+  struct_bias: number
+  last_event?: string
+  squeeze?: boolean
+  squeeze_release?: boolean
+  macd_bullish?: boolean
+  above_vwap?: boolean
+  aligned_bull?: boolean
+  vol_burst?: boolean
+  sweep_low?: boolean
+  sweep_high?: boolean
+  atr_pct?: number
+  htf_trend?: string | null
+}
+
+export interface IntradayRow {
+  symbol: string
+  coin_id: string | null
+  mode: 'scalping' | 'day'
+  price: number
+  change_24h: number
+  primary_tf: string
+  fast_tf: string
+  macro_tf: string
+  primary: IntradayTFData
+  fast: IntradayTFData | null
+  macro: IntradayTFData | null
+  setup: IntradayStage
+  whale: {
+    score: number
+    signal: string
+    description: string | null
+    oi_24h: number | null
+    funding: number | null
+  } | null
+  stops: {
+    entry: number
+    sl: number
+    tp1: number
+    tp2: number
+    sl_pct: number
+    tp1_pct: number
+    tp2_pct: number
+    r_multiple_1: number
+    r_multiple_2: number
+  } | null
+  composite: number
+  tier: string
+  action: string
+  can_hold_overnight: boolean
+}
+
+export interface IntradayResponse {
+  count: number
+  requested: number
+  mode: 'scalping' | 'day'
+  stats: {
+    trend_breakouts: number
+    vwap_reclaims: number
+    micro_pullbacks: number
+    liq_sweeps: number
+    squeeze_bos: number
+    overnight_eligible: number
+    tier_s: number
+    tier_a: number
+  }
+  data: IntradayRow[]
+  timestamp: number
+}
+
+export const fetchIntraday = (params: {
+  mode?: 'scalping' | 'day'
+  min_tier?: string
+  action?: string
+  stage?: string
+  overnight_only?: boolean
+  limit?: number
+} = {}) => {
+  const qs = new URLSearchParams()
+  if (params.mode) qs.set('mode', params.mode)
+  if (params.min_tier) qs.set('min_tier', params.min_tier)
+  if (params.action) qs.set('action', params.action)
+  if (params.stage) qs.set('stage', params.stage)
+  if (params.overnight_only) qs.set('overnight_only', 'true')
+  if (params.limit) qs.set('limit', String(params.limit))
+  return api.get<IntradayResponse>(`/intraday?${qs.toString()}`)
+}
+
 export const fetchStrategy = (portfolio_usd: number, profile = 'aggressive', limit = 100) => {
   const qs = new URLSearchParams({
     portfolio_usd: String(portfolio_usd),

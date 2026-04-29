@@ -1782,3 +1782,33 @@ td small { display: block; color: #8da2c0; font-size: 12px }
   border-color: rgba(159, 176, 200, 0.3);
   color: #9fb0c8;
 }
+
+/* ── Intraday Stage Badges ──────────────────────────────────────────────── */
+.stage-trend-bo {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+}
+.stage-vwap-reclaim {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+.stage-micro-pullback {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #6366f1;
+}
+.stage-liq-sweep {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #a855f7;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+.stage-squeeze-bo {
+  background: rgba(247, 185, 85, 0.15);
+  border-color: rgba(247, 185, 85, 0.5);
+  color: #f7b955;
+  box-shadow: 0 0 10px rgba(247, 185, 85, 0.2);
+}

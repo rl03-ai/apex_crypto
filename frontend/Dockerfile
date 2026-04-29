@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Cachebust — alterar este timestamp força rebuild quando o conteúdo do src muda
-ARG CACHEBUST=2026-04-28-v32-swing-matrix
+ARG CACHEBUST=2026-04-29-v35-rename-orb-to-trendbo
 RUN echo "Build cachebust: $CACHEBUST"
 
 COPY package*.json ./

@@ -1,0 +1,369 @@
+"""Intraday Detector — para holds 1h a 24h.
+
+Tri-TF analysis:
+  - Scalping mode: 5m + 15m + 1h
+  - Day mode:      15m + 1h + 4h
+
+Setups intraday:
+  - 💥 ORB (Opening Range Breakout) — break do high/low das primeiras 1-2h
+  - 🌊 VWAP Reclaim — preço reclama VWAP em trend
+  - 🔵 Micro Pullback — RSI 30-50 em trend curto
+  - 🎣 Liquidity Sweep — stops hunt + reversão imediata
+  - 🎯 Squeeze Breakout — squeeze release em TF curto
+  - 🟠 EXHAUSTION — esticado intraday
+  - 🔴 BEARISH — estrutura/macro contra long
+
+Score: -10 a +10 (consistente)
+Overnight rule: só permitir hold > sessão se tier S/A
+"""
+import logging
+from typing import Literal
+
+log = logging.getLogger(__name__)
+
+IntradayStage = Literal['TREND_BO', 'VWAP_RECLAIM', 'MICRO_PULLBACK',
+                        'LIQ_SWEEP', 'SQUEEZE_BO', 'EXHAUSTION',
+                        'BEARISH', 'NO_SETUP']
+
+IntradayMode = Literal['scalping', 'day']
+
+
+def _classify_intraday(
+    primary: dict,    # 5m (scalping) ou 15m (day) — entry timing
+    fast: dict,       # 15m (scalping) ou 1h (day)
+    macro: dict,      # 1h (scalping) ou 4h (day)
+    mode: IntradayMode = 'day',
+    whale: dict | None = None,
+) -> tuple[IntradayStage, int, list[str]]:
+    """Classifica setup intraday com tri-TF gatekeeping."""
+    reasons = []
+    
+    # Inputs primary (entry TF)
+    p_rsi = primary.get('rsi') or 50
+    p_struct_bias = primary.get('struct_bias', 0)
+    p_squeeze = primary.get('squeeze', False)
+    p_squeeze_release = primary.get('squeeze_release', False)
+    p_vol_burst = primary.get('vol_burst', False)
+    p_macd_bull = primary.get('macd_bullish', False)
+    p_above_vwap = primary.get('above_vwap', False)
+    p_atr_pct = primary.get('atr_pct', 1.5)
+    p_vol_ratio = primary.get('vol_ratio', 1)
+    p_dist_ma21 = primary.get('dist_ma21_pct', 0)
+    p_pullback_ma21 = primary.get('pullback_ma21_bull', False)
+    p_change_24h = primary.get('change_24h_pct', 0)
+    p_structure = primary.get('structure', {})
+    p_last_event = p_structure.get('last_event', 'none')
+    p_choch_bull = p_structure.get('choch_bull', False)
+    p_bos_bull = p_structure.get('bos_bull', False)
+    
+    # Liquidity sweep events (do structure module)
+    p_sweep_high = (primary.get('liquidity') or {}).get('sweep_high', False)
+    p_sweep_low = (primary.get('liquidity') or {}).get('sweep_low', False)
+    
+    # Inputs fast
+    f_rsi = (fast.get('rsi') or 50) if fast else 50
+    f_struct_bias = fast.get('struct_bias', 0) if fast else 0
+    f_aligned_bull = fast.get('aligned_bull', False) if fast else False
+    f_above_vwap = fast.get('above_vwap', False) if fast else False
+    f_macd_bull = fast.get('macd_bullish', False) if fast else False
+    
+    # Inputs macro
+    m_htf_trend = macro.get('htf_trend', 'LATERAL') if macro else 'LATERAL'
+    m_struct_bias = macro.get('struct_bias', 0) if macro else 0
+    m_above_vwap = macro.get('above_vwap', False) if macro else False
+    
+    # Whale (funding mais relevante em intraday)
+    whale_score = whale.get('score', 0) if whale else 0
+    whale_funding = whale.get('funding', 0) if whale else 0
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # GATEKEEPING #1: Estrutura primary bearish → não bullish
+    # Excepção: liquidity sweep low + reversal candle
+    # ════════════════════════════════════════════════════════════════════════
+    
+    primary_struct_bear = p_struct_bias == -1 or p_last_event in ('choch_bear', 'bos_bear')
+    
+    if primary_struct_bear and not (p_sweep_low and p_choch_bull):
+        reasons.append(f'⛔ Estrutura primary bearish ({p_last_event})')
+        score = -5
+        if m_htf_trend == 'BAIXA':
+            reasons.append('Macro confirma bear')
+            score = -7
+        return 'BEARISH', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # GATEKEEPING #2: Macro hostile no day mode
+    # ════════════════════════════════════════════════════════════════════════
+    
+    if mode == 'day' and m_htf_trend == 'BAIXA' and m_struct_bias == -1:
+        reasons.append('Macro 4h bearish — day trade contra-trend rejeitado')
+        return 'BEARISH', -4, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # GATEKEEPING #3: EXHAUSTION (multi-flag intraday-specific)
+    # ════════════════════════════════════════════════════════════════════════
+    
+    # Intraday usa thresholds mais tight (movimento já feito intra-dia)
+    critical_flags = []
+    if p_rsi > 80 and not p_pullback_ma21:
+        critical_flags.append(f'RSI {p_rsi:.0f} extremo (intraday)')
+    if p_change_24h > 18:
+        critical_flags.append(f'+{p_change_24h:.0f}% 24h — vertical')
+    
+    if critical_flags:
+        reasons.extend(critical_flags)
+        reasons.append('⛔ EXHAUSTION intraday')
+        return 'EXHAUSTION', -5, reasons
+    
+    moderate_flags = []
+    if p_rsi > 73:
+        moderate_flags.append(f'RSI {p_rsi:.0f}')
+    if p_change_24h > 12:
+        moderate_flags.append(f'+{p_change_24h:.0f}% 24h')
+    if whale_funding > 0.05:
+        moderate_flags.append(f'Funding {whale_funding:.3f}%')
+    if p_dist_ma21 > 6:
+        moderate_flags.append(f'{p_dist_ma21:.1f}% above MA21')
+    
+    if len(moderate_flags) >= 2:
+        reasons.extend(moderate_flags)
+        reasons.append('⚠ Multi-flag exhaustion')
+        return 'EXHAUSTION', -3, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # SETUP #1: LIQUIDITY SWEEP + REVERSAL (highest priority — high R)
+    # ════════════════════════════════════════════════════════════════════════
+    
+    if p_sweep_low and p_choch_bull:
+        reasons.append('🎣 Liquidity sweep low + CHoCH bull')
+        if f_struct_bias >= 0:
+            reasons.append('Fast TF não destrutiva')
+        score = 8
+        if m_htf_trend == 'ALTA':
+            reasons.append('Macro bull confirma')
+            score = 10
+        elif m_htf_trend == 'BAIXA':
+            reasons.append('⚠ Counter-trend macro')
+            score = 6
+        return 'LIQ_SWEEP', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # SETUP #2: SQUEEZE BREAKOUT
+    # ════════════════════════════════════════════════════════════════════════
+    
+    structure_supports = (p_struct_bias == 1 and (p_choch_bull or p_bos_bull))
+    
+    if p_squeeze_release and p_vol_burst and structure_supports:
+        reasons.append('💥 Squeeze release + vol burst')
+        if p_choch_bull:
+            reasons.append('CHoCH bull')
+        if p_bos_bull:
+            reasons.append('BOS bull')
+        score = 8
+        if m_htf_trend == 'ALTA' and m_struct_bias >= 0:
+            score = 10
+            reasons.append('Macro alinhado')
+        if f_above_vwap:
+            reasons.append('Fast above VWAP')
+            score = min(10, score + 1)
+        return 'SQUEEZE_BO', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # SETUP #3: VWAP RECLAIM (preço reclama VWAP em trend)
+    # ════════════════════════════════════════════════════════════════════════
+    
+    # VWAP reclaim: above_vwap=True mas estava abaixo recentemente (proxy: pullback to MA21)
+    vwap_reclaim_bull = (
+        p_above_vwap
+        and p_pullback_ma21
+        and structure_supports
+        and 40 < p_rsi < 65
+    )
+    
+    if vwap_reclaim_bull:
+        reasons.append('🌊 VWAP reclaim em pullback')
+        if structure_supports:
+            reasons.append(f'Estrutura: {p_last_event}')
+        score = 7
+        if m_above_vwap and m_htf_trend == 'ALTA':
+            reasons.append('Macro também above VWAP + ALTA')
+            score = 9
+        if f_aligned_bull:
+            score = min(10, score + 1)
+        return 'VWAP_RECLAIM', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # SETUP #4: TREND BREAKOUT (trend day momentum entry)
+    # 
+    # Trend continuation com volume confirmação:
+    #   - Vol burst (>2× média)
+    #   - Above VWAP
+    #   - Estrutura bull confirmada (CHoCH/BOS recente)
+    #   - RSI ainda saudável (<70)
+    #   - MACD bull
+    #
+    # Apanha casos não cobertos por SQUEEZE_BO (sem squeeze recente)
+    # ou VWAP_RECLAIM (sem pullback to MA21).
+    # ════════════════════════════════════════════════════════════════════════
+    
+    trend_bo_bullish = (
+        p_vol_burst
+        and p_above_vwap
+        and structure_supports
+        and p_struct_bias == 1
+        and p_rsi < 70
+        and p_macd_bull
+    )
+    
+    if trend_bo_bullish:
+        reasons.append('💥 Trend breakout: vol burst + above VWAP + struct bull')
+        if p_choch_bull:
+            reasons.append('CHoCH bull')
+        if p_bos_bull:
+            reasons.append('BOS bull (continuation)')
+        score = 7
+        if m_htf_trend == 'ALTA':
+            reasons.append('Macro alinhado bull')
+            score = 9
+        if f_above_vwap and f_macd_bull:
+            score = min(10, score + 1)
+        return 'TREND_BO', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # SETUP #5: MICRO PULLBACK
+    # RSI 30-50 em trend curto (struct bull) + VWAP support
+    # ════════════════════════════════════════════════════════════════════════
+    
+    micro_pullback = (
+        30 <= p_rsi <= 50
+        and structure_supports
+        and p_struct_bias == 1
+        and (p_above_vwap or f_above_vwap)
+        and not primary_struct_bear
+    )
+    
+    if micro_pullback:
+        reasons.append(f'🔵 Micro pullback: RSI {p_rsi:.0f} em trend')
+        if p_above_vwap:
+            reasons.append('Above VWAP')
+        if structure_supports:
+            reasons.append(f'Estrutura: {p_last_event}')
+        score = 6
+        if m_htf_trend == 'ALTA' and structure_supports:
+            score = 8
+            reasons.append('Macro bull')
+        if f_macd_bull:
+            score = min(10, score + 1)
+        return 'MICRO_PULLBACK', score, reasons
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # FALLBACK: NO SETUP
+    # ════════════════════════════════════════════════════════════════════════
+    
+    reasons.append('Sem setup intraday claro')
+    score = 0
+    if p_struct_bias == 1 and m_htf_trend == 'ALTA':
+        reasons.append('Estrutura + macro bull mas faltam triggers')
+        score = 1
+    return 'NO_SETUP', score, reasons
+
+
+def _intraday_action(stage: IntradayStage, score: int) -> str:
+    if stage == 'LIQ_SWEEP' and score >= 8:
+        return 'STRONG BUY'
+    if stage in ('SQUEEZE_BO', 'TREND_BO') and score >= 8:
+        return 'STRONG BUY'
+    if stage == 'VWAP_RECLAIM' and score >= 8:
+        return 'STRONG BUY'
+    if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM',
+                 'MICRO_PULLBACK') and score >= 5:
+        return 'BUY'
+    if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM',
+                 'MICRO_PULLBACK'):
+        return 'WATCH'
+    if stage == 'EXHAUSTION':
+        return 'AVOID'
+    if stage == 'BEARISH':
+        return 'AVOID'
+    return 'WATCH'
+
+
+def _intraday_tier(stage: IntradayStage, score: int) -> str:
+    if stage in ('LIQ_SWEEP', 'SQUEEZE_BO') and score >= 9:
+        return 'S'
+    if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM') and score >= 7:
+        return 'A'
+    if score >= 5:
+        return 'B'
+    if score >= 3:
+        return 'C'
+    return 'D'
+
+
+def _can_hold_overnight(tier: str, stage: IntradayStage) -> bool:
+    """Regra: só Tier S/A em setups direccionais podem manter overnight."""
+    if tier not in ('S', 'A'):
+        return False
+    if stage in ('EXHAUSTION', 'BEARISH', 'NO_SETUP'):
+        return False
+    return True
+
+
+def detect_intraday(
+    primary: dict,
+    fast: dict | None = None,
+    macro: dict | None = None,
+    mode: IntradayMode = 'day',
+    whale: dict | None = None,
+) -> dict:
+    """Main entry — detecta intraday setup com tri-TF analysis.
+    
+    Args:
+        primary: 5m (scalping) ou 15m (day)
+        fast: 15m (scalping) ou 1h (day)
+        macro: 1h (scalping) ou 4h (day)
+        mode: 'scalping' ou 'day'
+        whale: whale data (peso reduzido em intraday)
+    
+    Returns:
+        {
+            'stage': 'TREND_BO' | ...,
+            'mode': 'scalping' | 'day',
+            'score': int (-10 a +10),
+            'tier': 'S' | 'A' | 'B' | 'C' | 'D',
+            'action': 'STRONG BUY' | 'BUY' | 'WATCH' | 'AVOID',
+            'reasons': [...],
+            'can_hold_overnight': bool,
+        }
+    """
+    if not primary:
+        return {
+            'stage': 'NO_SETUP',
+            'mode': mode,
+            'score': 0,
+            'tier': 'D',
+            'action': 'WATCH',
+            'reasons': ['No primary TF data'],
+            'can_hold_overnight': False,
+        }
+    
+    if not macro:
+        macro = {}
+    if not fast:
+        fast = {}
+    
+    stage, score, reasons = _classify_intraday(primary, fast, macro, mode, whale)
+    score = max(-10, min(10, score))
+    tier = _intraday_tier(stage, score)
+    action = _intraday_action(stage, score)
+    
+    return {
+        'stage': stage,
+        'stage_label': stage.replace('_', ' ').title(),
+        'mode': mode,
+        'score': score,
+        'tier': tier,
+        'action': action,
+        'reasons': reasons,
+        'can_hold_overnight': _can_hold_overnight(tier, stage),
+    }

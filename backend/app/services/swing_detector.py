@@ -93,20 +93,74 @@ def _classify_swing(
         return 'BEARISH', -5, reasons
     
     # ════════════════════════════════════════════════════════════════════════
-    # GATEKEEPING #3: EXHAUSTION (overbought/oversold + sem reversal)
-    # Se RSI > 75 ou < 25 e não há setup → AVOID
+    # GATEKEEPING #3: EXHAUSTION (multi-flag confluence)
+    # 
+    # Princípio: nenhum indicador isolado flagra exhaustion.
+    # Precisamos de CONVERGÊNCIA de sinais para evitar falsos positivos.
+    #
+    # Flags possíveis (mode-aware thresholds):
+    #   - Extension: m_ext acima do threshold
+    #   - RSI overbought
+    #   - Funding overheated (whale)
+    #   - Vol blow-off (price_change_7d alto)
+    #
+    # Triggers:
+    #   - 1 flag CRÍTICA (extreme) → EXHAUSTION
+    #   - 2+ flags moderadas convergentes → EXHAUSTION
     # ════════════════════════════════════════════════════════════════════════
     
-    if p_rsi > 78 and not p_pullback_ma21:
-        reasons.append(f'RSI {p_rsi:.0f} overbought sem pullback')
-        if whale_funding > 0.05:
-            reasons.append(f'Funding overheated ({whale_funding:.3f}%)')
-            return 'EXHAUSTION', -4, reasons
-        return 'EXHAUSTION', -2, reasons
+    # Mode-aware thresholds (medium mais conservador porque holds longos)
+    if mode == 'medium':
+        ext_critical = 60      # absolute critical
+        ext_moderate = 35      # contributes to multi-flag
+        rsi_critical = 80
+        rsi_moderate = 72
+        change_critical = 35
+        change_moderate = 22
+    else:  # short
+        ext_critical = 70
+        ext_moderate = 45
+        rsi_critical = 82
+        rsi_moderate = 75
+        change_critical = 40
+        change_moderate = 25
     
-    if m_ext > 25:
-        reasons.append(f'Macro {m_ext:.0f}% above MA200 — exhaustion zone')
-        return 'EXHAUSTION', -3, reasons
+    price_change_7d = primary.get('price_change_7d_pct', 0)
+    
+    # Critical flags: qualquer uma sozinha → EXHAUSTION
+    critical_flags = []
+    if m_ext > ext_critical:
+        critical_flags.append(f'Macro {m_ext:.0f}% above MA200 (critical)')
+    if p_rsi > rsi_critical:
+        critical_flags.append(f'RSI {p_rsi:.0f} (critical overbought)')
+    if price_change_7d > change_critical:
+        critical_flags.append(f'Vol blow-off +{price_change_7d:.0f}% 7d')
+    
+    if critical_flags:
+        reasons.extend(critical_flags)
+        reasons.append('⛔ EXHAUSTION: critical extension')
+        return 'EXHAUSTION', -5, reasons
+    
+    # Moderate flags: precisa 2+ para flagar
+    moderate_flags = []
+    if m_ext > ext_moderate:
+        moderate_flags.append(f'Macro {m_ext:.0f}% above MA200')
+    if p_rsi > rsi_moderate:
+        moderate_flags.append(f'RSI {p_rsi:.0f} elevated')
+    if whale_funding > 0.04:
+        moderate_flags.append(f'Funding overheated ({whale_funding:.3f}%)')
+    if price_change_7d > change_moderate:
+        moderate_flags.append(f'+{price_change_7d:.0f}% in 7d')
+    
+    # RSI > 78 sem pullback é flag standalone (mantém tua lógica original)
+    if p_rsi > 78 and not p_pullback_ma21:
+        moderate_flags.append(f'RSI {p_rsi:.0f} overbought sem pullback')
+    
+    if len(moderate_flags) >= 2:
+        reasons.extend(moderate_flags)
+        reasons.append('⚠ EXHAUSTION: multi-flag confluence')
+        score = -3 if mode == 'short' else -4
+        return 'EXHAUSTION', score, reasons
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #1: BREAKOUT (squeeze release + vol burst)
