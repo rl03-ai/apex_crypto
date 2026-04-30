@@ -180,21 +180,23 @@ def _classify_intraday(
     
     primary_struct_bear = p_struct_bias == -1 or p_last_event in ('choch_bear', 'bos_bear')
     
+    intraday_penalty = 0
     if primary_struct_bear and not (p_sweep_low and p_choch_bull):
-        reasons.append(f'⛔ Estrutura primary bearish ({p_last_event})')
-        score = -5
+        reasons.append(f'Estrutura primary bearish ({p_last_event}): penalização')
+        intraday_penalty -= 3
         if m_htf_trend == 'BAIXA':
-            reasons.append('Macro confirma bear')
-            score = -7
-        return 'BEARISH', score, reasons, phase
+            reasons.append('Macro confirma bear: penalização extra')
+            intraday_penalty -= 2
     
     # ════════════════════════════════════════════════════════════════════════
     # GATEKEEPING #2: Macro hostile no day mode
+    # Agora é penalização. Intraday deve conseguir gerar WATCH/READY em
+    # reversões ou micro setups, mesmo se o macro ainda não virou.
     # ════════════════════════════════════════════════════════════════════════
     
     if mode == 'day' and m_htf_trend == 'BAIXA' and m_struct_bias == -1:
-        reasons.append('Macro 4h bearish — day trade contra-trend rejeitado')
-        return 'BEARISH', -4, reasons, phase
+        reasons.append('Macro 4h bearish — penaliza, não rejeita')
+        intraday_penalty -= 2
     
     # ════════════════════════════════════════════════════════════════════════
     # GATEKEEPING #3: EXHAUSTION (multi-flag intraday-specific)
@@ -209,8 +211,8 @@ def _classify_intraday(
     
     if critical_flags:
         reasons.extend(critical_flags)
-        reasons.append('⛔ EXHAUSTION intraday')
-        return 'EXHAUSTION', -5, reasons, phase
+        reasons.append('EXHAUSTION intraday: penalização forte')
+        intraday_penalty -= 4
     
     moderate_flags = []
     if p_rsi > 73:
@@ -224,8 +226,8 @@ def _classify_intraday(
     
     if len(moderate_flags) >= 2:
         reasons.extend(moderate_flags)
-        reasons.append('⚠ Multi-flag exhaustion')
-        return 'EXHAUSTION', -3, reasons, phase
+        reasons.append('Multi-flag exhaustion: penalização moderada')
+        intraday_penalty -= 2
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #1: LIQUIDITY SWEEP + REVERSAL (highest priority — high R)
@@ -243,6 +245,7 @@ def _classify_intraday(
             reasons.append('⚠ Counter-trend macro')
             score = 6
         score = _phase_adjust_intraday_score('LIQ_SWEEP', score, phase, trigger=p_choch_bull, mode=mode, reasons=reasons)
+        score = max(1, min(10, score + intraday_penalty))
         return 'LIQ_SWEEP', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
@@ -265,6 +268,7 @@ def _classify_intraday(
             reasons.append('Fast above VWAP')
             score = min(10, score + 1)
         score = _phase_adjust_intraday_score('SQUEEZE_BO', score, phase, trigger=(p_squeeze_release and p_vol_burst), mode=mode, reasons=reasons)
+        score = max(1, min(10, score + intraday_penalty))
         return 'SQUEEZE_BO', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
@@ -290,6 +294,7 @@ def _classify_intraday(
         if f_aligned_bull:
             score = min(10, score + 1)
         score = _phase_adjust_intraday_score('VWAP_RECLAIM', score, phase, trigger=p_above_vwap, mode=mode, reasons=reasons)
+        score = max(1, min(10, score + intraday_penalty))
         return 'VWAP_RECLAIM', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
@@ -328,6 +333,7 @@ def _classify_intraday(
         if f_above_vwap and f_macd_bull:
             score = min(10, score + 1)
         score = _phase_adjust_intraday_score('TREND_BO', score, phase, trigger=(p_vol_burst and p_macd_bull), mode=mode, reasons=reasons)
+        score = max(1, min(10, score + intraday_penalty))
         return 'TREND_BO', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
@@ -356,6 +362,7 @@ def _classify_intraday(
         if f_macd_bull:
             score = min(10, score + 1)
         score = _phase_adjust_intraday_score('MICRO_PULLBACK', score, phase, trigger=(p_pullback_ma21 and (p_above_vwap or f_above_vwap)), mode=mode, reasons=reasons)
+        score = max(1, min(10, score + intraday_penalty))
         return 'MICRO_PULLBACK', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
@@ -397,16 +404,16 @@ def _classify_intraday(
         soft_score -= 2
         reasons.append('Soft: fase penaliza')
 
-    if soft_score >= 5 and not primary_struct_bear:
-        score = min(5, soft_score)
+    if soft_score >= 5:
+        score = max(1, min(5, soft_score + intraday_penalty))
         reasons.append('Setup intraday suave por confluencia')
         return 'MICRO_PULLBACK', score, reasons, phase
     if soft_score >= 3:
-        score = min(3, soft_score)
+        score = max(1, min(3, soft_score + intraday_penalty))
         reasons.append('Watchlist intraday por confluencia parcial')
         return 'NO_SETUP', score, reasons, phase
 
-    score = max(0, soft_score)
+    score = max(1, soft_score + intraday_penalty)
     return 'NO_SETUP', score, reasons, phase
 
 
@@ -496,7 +503,7 @@ def detect_intraday(
         fast = {}
     
     stage, score, reasons, phase = _classify_intraday(primary, fast, macro, mode, whale)
-    score = max(-10, min(10, score))
+    score = max(1, min(10, score))
     tier = _intraday_tier(stage, score)
     action = _intraday_action(stage, score)
     

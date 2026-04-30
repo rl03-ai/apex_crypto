@@ -111,13 +111,16 @@ def detect_swing(
     phase = _detect_phase(p_rsi, p_struct_bias, p_last_event, bars_since_event)
 
     reasons: list[str] = [f'Phase swing: {phase}']
+    # v3: macro/extension deixam de bloquear; passam a penalizar.
+    # Isto mantém prudência sem transformar Swing numa Matrix rígida.
     blocked = False
+    macro_penalty = 0
     if htf_trend == 'BAIXA' and m_struct_bias == -1:
-        blocked = True
-        reasons.append('Macro bearish')
+        macro_penalty -= 2
+        reasons.append('Macro bearish: penalização, não bloqueio')
     if phase in ('DISTRIBUTION', 'REVERSAL_DOWN') and m_ext > 25:
-        blocked = True
-        reasons.append('Extensão elevada em fase perigosa')
+        macro_penalty -= 2
+        reasons.append('Extensão elevada: penalização')
 
     structure_supports = p_struct_bias == 1 and p_last_event in ('choch_bull', 'bos_bull') and bars_since_event < 14
     fast_supports = f_struct_bias >= 0 and (f_aligned_bull or f_macd_bull or f_choch_bull)
@@ -127,7 +130,7 @@ def detect_swing(
 
     if p_struct_bias == -1 and htf_trend == 'BAIXA':
         stage = 'BEARISH'
-        base_score = -4
+        base_score = -2
         reasons.append('Estrutura primary + macro bearish')
     elif p_rsi > 78 or (phase == 'DISTRIBUTION' and m_ext > 35):
         stage = 'EXHAUSTION'
@@ -210,6 +213,8 @@ def detect_swing(
         score += weights['trigger']
     score += weights['penalty']
 
+    score += macro_penalty
+
     if htf_trend == 'ALTA':
         score += 1
         reasons.append('Macro ALTA')
@@ -223,6 +228,8 @@ def detect_swing(
     if mode == 'medium' and stage in ('BREAKOUT', 'MOMENTUM') and htf_trend != 'BAIXA':
         score += 1
 
+    if stage == 'NO_SETUP' and score <= 0:
+        score = 1  # anti-zero: watchlist mínima quando há dados
     score = max(-10, min(10, int(score)))
     tier = _tier(score)
     action = _action(stage, score, blocked=blocked)
