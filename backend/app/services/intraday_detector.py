@@ -28,13 +28,92 @@ IntradayStage = Literal['TREND_BO', 'VWAP_RECLAIM', 'MICRO_PULLBACK',
 IntradayMode = Literal['scalping', 'day']
 
 
+IntradayPhase = Literal['MOMENTUM_TREND', 'REVERSAL_UP', 'PULLBACK',
+                        'DISTRIBUTION', 'EXHAUSTION', 'BEARISH', 'RANGE']
+
+
+def _detect_intraday_phase(
+    *, p_rsi: float, p_struct_bias: int, p_above_vwap: bool,
+    p_pullback_ma21: bool, p_sweep_low: bool, p_choch_bull: bool,
+    p_last_event: str, f_above_vwap: bool, f_macd_bull: bool,
+    m_htf_trend: str, m_struct_bias: int, p_change_24h: float,
+    whale_funding: float, p_dist_ma21: float,
+) -> IntradayPhase:
+    primary_bear = p_struct_bias == -1 or p_last_event in ('choch_bear', 'bos_bear')
+    macro_bear = m_htf_trend == 'BAIXA' and m_struct_bias == -1
+
+    if primary_bear and not (p_sweep_low and p_choch_bull):
+        return 'BEARISH'
+    if macro_bear:
+        return 'BEARISH'
+    if p_rsi > 80 or p_change_24h > 18:
+        return 'EXHAUSTION'
+
+    distribution_flags = 0
+    if p_rsi > 73:
+        distribution_flags += 1
+    if p_change_24h > 12:
+        distribution_flags += 1
+    if whale_funding > 0.05:
+        distribution_flags += 1
+    if p_dist_ma21 > 6:
+        distribution_flags += 1
+    if distribution_flags >= 2:
+        return 'DISTRIBUTION'
+
+    structure_supports = p_struct_bias == 1 and p_last_event in ('choch_bull', 'bos_bull')
+    if p_sweep_low and p_choch_bull:
+        return 'REVERSAL_UP'
+    if structure_supports and p_above_vwap and (f_above_vwap or f_macd_bull) and 45 <= p_rsi <= 70:
+        return 'MOMENTUM_TREND'
+    if structure_supports and p_pullback_ma21 and 30 <= p_rsi <= 55:
+        return 'PULLBACK'
+    return 'RANGE'
+
+
+def _phase_adjust_intraday_score(
+    stage: IntradayStage, base_score: int, phase: IntradayPhase, *,
+    trigger: bool, mode: IntradayMode, reasons: list[str],
+) -> int:
+    trend_setups = {'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM', 'MICRO_PULLBACK'}
+    reversal_setups = {'LIQ_SWEEP'}
+    phase_weights = {
+        'MOMENTUM_TREND': {'trend': 2, 'reversal': 0, 'trigger': 1, 'penalty': 0},
+        'REVERSAL_UP': {'trend': 0, 'reversal': 2, 'trigger': 1, 'penalty': 0},
+        'PULLBACK': {'trend': 1, 'reversal': 1, 'trigger': 1, 'penalty': 0},
+        'RANGE': {'trend': 0, 'reversal': 1, 'trigger': 1, 'penalty': 0},
+        'DISTRIBUTION': {'trend': -2, 'reversal': 0, 'trigger': 0, 'penalty': -1},
+        'EXHAUSTION': {'trend': -3, 'reversal': -1, 'trigger': 0, 'penalty': -2},
+        'BEARISH': {'trend': -3, 'reversal': -1, 'trigger': 0, 'penalty': -2},
+    }
+    weights = phase_weights.get(phase, phase_weights['RANGE'])
+
+    adjusted = base_score
+    if stage in trend_setups:
+        adjusted += weights['trend']
+    if stage in reversal_setups:
+        adjusted += weights['reversal']
+    if trigger:
+        adjusted += weights['trigger']
+    adjusted += weights['penalty']
+
+    # Scalping reage mais cedo; day mode fica ligeiramente mais seletivo.
+    if mode == 'scalping' and phase in ('MOMENTUM_TREND', 'REVERSAL_UP', 'PULLBACK') and stage != 'NO_SETUP':
+        adjusted += 1
+
+    if adjusted != base_score:
+        reasons.append(f'Phase score: {phase} ({base_score} → {adjusted})')
+
+    return max(-10, min(10, adjusted))
+
+
 def _classify_intraday(
     primary: dict,    # 5m (scalping) ou 15m (day) — entry timing
     fast: dict,       # 15m (scalping) ou 1h (day)
     macro: dict,      # 1h (scalping) ou 4h (day)
     mode: IntradayMode = 'day',
     whale: dict | None = None,
-) -> tuple[IntradayStage, int, list[str]]:
+) -> tuple[IntradayStage, int, list[str], IntradayPhase]:
     """Classifica setup intraday com tri-TF gatekeeping."""
     reasons = []
     
@@ -75,6 +154,24 @@ def _classify_intraday(
     # Whale (funding mais relevante em intraday)
     whale_score = whale.get('score', 0) if whale else 0
     whale_funding = whale.get('funding', 0) if whale else 0
+
+    phase = _detect_intraday_phase(
+        p_rsi=p_rsi,
+        p_struct_bias=p_struct_bias,
+        p_above_vwap=p_above_vwap,
+        p_pullback_ma21=p_pullback_ma21,
+        p_sweep_low=p_sweep_low,
+        p_choch_bull=p_choch_bull,
+        p_last_event=p_last_event,
+        f_above_vwap=f_above_vwap,
+        f_macd_bull=f_macd_bull,
+        m_htf_trend=m_htf_trend,
+        m_struct_bias=m_struct_bias,
+        p_change_24h=p_change_24h,
+        whale_funding=whale_funding,
+        p_dist_ma21=p_dist_ma21,
+    )
+    reasons.append(f'Phase intraday: {phase}')
     
     # ════════════════════════════════════════════════════════════════════════
     # GATEKEEPING #1: Estrutura primary bearish → não bullish
@@ -89,7 +186,7 @@ def _classify_intraday(
         if m_htf_trend == 'BAIXA':
             reasons.append('Macro confirma bear')
             score = -7
-        return 'BEARISH', score, reasons
+        return 'BEARISH', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # GATEKEEPING #2: Macro hostile no day mode
@@ -97,7 +194,7 @@ def _classify_intraday(
     
     if mode == 'day' and m_htf_trend == 'BAIXA' and m_struct_bias == -1:
         reasons.append('Macro 4h bearish — day trade contra-trend rejeitado')
-        return 'BEARISH', -4, reasons
+        return 'BEARISH', -4, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # GATEKEEPING #3: EXHAUSTION (multi-flag intraday-specific)
@@ -113,7 +210,7 @@ def _classify_intraday(
     if critical_flags:
         reasons.extend(critical_flags)
         reasons.append('⛔ EXHAUSTION intraday')
-        return 'EXHAUSTION', -5, reasons
+        return 'EXHAUSTION', -5, reasons, phase
     
     moderate_flags = []
     if p_rsi > 73:
@@ -128,7 +225,7 @@ def _classify_intraday(
     if len(moderate_flags) >= 2:
         reasons.extend(moderate_flags)
         reasons.append('⚠ Multi-flag exhaustion')
-        return 'EXHAUSTION', -3, reasons
+        return 'EXHAUSTION', -3, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #1: LIQUIDITY SWEEP + REVERSAL (highest priority — high R)
@@ -145,7 +242,8 @@ def _classify_intraday(
         elif m_htf_trend == 'BAIXA':
             reasons.append('⚠ Counter-trend macro')
             score = 6
-        return 'LIQ_SWEEP', score, reasons
+        score = _phase_adjust_intraday_score('LIQ_SWEEP', score, phase, trigger=p_choch_bull, mode=mode, reasons=reasons)
+        return 'LIQ_SWEEP', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #2: SQUEEZE BREAKOUT
@@ -166,7 +264,8 @@ def _classify_intraday(
         if f_above_vwap:
             reasons.append('Fast above VWAP')
             score = min(10, score + 1)
-        return 'SQUEEZE_BO', score, reasons
+        score = _phase_adjust_intraday_score('SQUEEZE_BO', score, phase, trigger=(p_squeeze_release and p_vol_burst), mode=mode, reasons=reasons)
+        return 'SQUEEZE_BO', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #3: VWAP RECLAIM (preço reclama VWAP em trend)
@@ -190,7 +289,8 @@ def _classify_intraday(
             score = 9
         if f_aligned_bull:
             score = min(10, score + 1)
-        return 'VWAP_RECLAIM', score, reasons
+        score = _phase_adjust_intraday_score('VWAP_RECLAIM', score, phase, trigger=p_above_vwap, mode=mode, reasons=reasons)
+        return 'VWAP_RECLAIM', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #4: TREND BREAKOUT (trend day momentum entry)
@@ -227,7 +327,8 @@ def _classify_intraday(
             score = 9
         if f_above_vwap and f_macd_bull:
             score = min(10, score + 1)
-        return 'TREND_BO', score, reasons
+        score = _phase_adjust_intraday_score('TREND_BO', score, phase, trigger=(p_vol_burst and p_macd_bull), mode=mode, reasons=reasons)
+        return 'TREND_BO', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # SETUP #5: MICRO PULLBACK
@@ -254,7 +355,8 @@ def _classify_intraday(
             reasons.append('Macro bull')
         if f_macd_bull:
             score = min(10, score + 1)
-        return 'MICRO_PULLBACK', score, reasons
+        score = _phase_adjust_intraday_score('MICRO_PULLBACK', score, phase, trigger=(p_pullback_ma21 and (p_above_vwap or f_above_vwap)), mode=mode, reasons=reasons)
+        return 'MICRO_PULLBACK', score, reasons, phase
     
     # ════════════════════════════════════════════════════════════════════════
     # FALLBACK: NO SETUP
@@ -265,7 +367,7 @@ def _classify_intraday(
     if p_struct_bias == 1 and m_htf_trend == 'ALTA':
         reasons.append('Estrutura + macro bull mas faltam triggers')
         score = 1
-    return 'NO_SETUP', score, reasons
+    return 'NO_SETUP', score, reasons, phase
 
 
 def _intraday_action(stage: IntradayStage, score: int) -> str:
@@ -341,6 +443,7 @@ def detect_intraday(
             'stage': 'NO_SETUP',
             'mode': mode,
             'score': 0,
+            'phase': 'RANGE',
             'tier': 'D',
             'action': 'WATCH',
             'reasons': ['No primary TF data'],
@@ -352,7 +455,7 @@ def detect_intraday(
     if not fast:
         fast = {}
     
-    stage, score, reasons = _classify_intraday(primary, fast, macro, mode, whale)
+    stage, score, reasons, phase = _classify_intraday(primary, fast, macro, mode, whale)
     score = max(-10, min(10, score))
     tier = _intraday_tier(stage, score)
     action = _intraday_action(stage, score)
@@ -362,6 +465,7 @@ def detect_intraday(
         'stage_label': stage.replace('_', ' ').title(),
         'mode': mode,
         'score': score,
+        'phase': phase,
         'tier': tier,
         'action': action,
         'reasons': reasons,
