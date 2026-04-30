@@ -57,7 +57,10 @@ def _get_cors_origins() -> list[str]:
 
 app.add_middleware(
     CORSMiddleware,
+    # Mantém lista explícita, mas adiciona regex para evitar bloqueios quando
+    # o frontend muda de subdomínio no Render/Vercel/Netlify.
     allow_origins=_get_cors_origins(),
+    allow_origin_regex=r"https://.*\.(onrender\.com|vercel\.app|netlify\.app)$",
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
