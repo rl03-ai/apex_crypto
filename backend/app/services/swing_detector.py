@@ -125,10 +125,7 @@ def detect_swing(
     stage: SwingStage = 'NO_SETUP'
     base_score = 0
 
-    if p_atr_pct and p_atr_pct < 0.6:
-        stage = 'NO_SETUP'
-        reasons.append('ATR muito baixo')
-    elif p_struct_bias == -1 and htf_trend == 'BAIXA':
+    if p_struct_bias == -1 and htf_trend == 'BAIXA':
         stage = 'BEARISH'
         base_score = -4
         reasons.append('Estrutura primary + macro bearish')
@@ -157,7 +154,43 @@ def detect_swing(
         base_score = 2
         reasons.append('Estrutura bull, mas faltam confirmações')
     else:
-        reasons.append('Sem setup swing claro')
+        soft_score = 0
+        if p_struct_bias == 1 or p_last_event in ('choch_bull', 'bos_bull'):
+            soft_score += 1
+            reasons.append('Soft: estrutura nao bearish/bullish')
+        if p_macd_bull:
+            soft_score += 1
+            reasons.append('Soft: MACD bull')
+        if p_aligned_bull:
+            soft_score += 1
+            reasons.append('Soft: medias alinhadas')
+        if fast_supports:
+            soft_score += 1
+            reasons.append('Soft: fast TF neutro/positivo')
+        if htf_trend == 'ALTA' or m_struct_bias >= 0:
+            soft_score += 1
+            reasons.append('Soft: macro nao hostil')
+        if 38 <= p_rsi <= 65:
+            soft_score += 1
+            reasons.append('Soft: RSI saudavel')
+        if p_squeeze or p_squeeze_release:
+            soft_score += 1
+            reasons.append('Soft: compressao/squeeze')
+
+        if soft_score >= 4 and phase not in ('DISTRIBUTION', 'REVERSAL_DOWN'):
+            stage = 'MOMENTUM'
+            base_score = 3
+            reasons.append('Setup swing suave por confluencia')
+        elif soft_score >= 2 and phase not in ('REVERSAL_DOWN',):
+            stage = 'NO_SETUP'
+            base_score = 1
+            reasons.append('Watchlist swing por confluencia parcial')
+        else:
+            reasons.append('Sem setup swing claro')
+
+    if p_atr_pct and p_atr_pct < 0.6 and base_score > 0:
+        base_score = max(1, base_score - 1)
+        reasons.append('ATR baixo: score reduzido')
 
     phase_weights = {
         'TREND': {'trend': 2, 'reversal': 0, 'trigger': 1, 'penalty': 0},

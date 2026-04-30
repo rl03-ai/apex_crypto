@@ -362,11 +362,51 @@ def _classify_intraday(
     # FALLBACK: NO SETUP
     # ════════════════════════════════════════════════════════════════════════
     
-    reasons.append('Sem setup intraday claro')
-    score = 0
-    if p_struct_bias == 1 and m_htf_trend == 'ALTA':
-        reasons.append('Estrutura + macro bull mas faltam triggers')
-        score = 1
+    reasons.append('Sem setup intraday classico')
+
+    soft_score = 0
+    if p_struct_bias >= 0:
+        soft_score += 1
+        reasons.append('Soft: estrutura nao bearish')
+    if p_above_vwap:
+        soft_score += 1
+        reasons.append('Soft: acima da VWAP')
+    if p_macd_bull:
+        soft_score += 1
+        reasons.append('Soft: MACD bull')
+    if f_above_vwap or f_macd_bull or f_aligned_bull:
+        soft_score += 1
+        reasons.append('Soft: fast TF confirma')
+    if m_htf_trend != 'BAIXA' and m_struct_bias >= 0:
+        soft_score += 1
+        reasons.append('Soft: macro nao hostil')
+    if 35 <= p_rsi <= 68:
+        soft_score += 1
+        reasons.append('Soft: RSI utilizavel')
+    if p_vol_ratio and p_vol_ratio >= 1.2:
+        soft_score += 1
+        reasons.append('Soft: volume acima da media')
+    if p_pullback_ma21:
+        soft_score += 1
+        reasons.append('Soft: pullback MA21')
+
+    if phase in ('MOMENTUM_TREND', 'PULLBACK', 'REVERSAL_UP'):
+        soft_score += 1
+        reasons.append('Soft: fase favoravel')
+    elif phase in ('DISTRIBUTION', 'EXHAUSTION', 'BEARISH'):
+        soft_score -= 2
+        reasons.append('Soft: fase penaliza')
+
+    if soft_score >= 5 and not primary_struct_bear:
+        score = min(5, soft_score)
+        reasons.append('Setup intraday suave por confluencia')
+        return 'MICRO_PULLBACK', score, reasons, phase
+    if soft_score >= 3:
+        score = min(3, soft_score)
+        reasons.append('Watchlist intraday por confluencia parcial')
+        return 'NO_SETUP', score, reasons, phase
+
+    score = max(0, soft_score)
     return 'NO_SETUP', score, reasons, phase
 
 
@@ -378,7 +418,7 @@ def _intraday_action(stage: IntradayStage, score: int) -> str:
     if stage == 'VWAP_RECLAIM' and score >= 8:
         return 'STRONG BUY'
     if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM',
-                 'MICRO_PULLBACK') and score >= 5:
+                 'MICRO_PULLBACK') and score >= 4:
         return 'BUY'
     if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM',
                  'MICRO_PULLBACK'):
@@ -395,7 +435,7 @@ def _intraday_tier(stage: IntradayStage, score: int) -> str:
         return 'S'
     if stage in ('LIQ_SWEEP', 'SQUEEZE_BO', 'TREND_BO', 'VWAP_RECLAIM') and score >= 7:
         return 'A'
-    if score >= 5:
+    if score >= 4:
         return 'B'
     if score >= 3:
         return 'C'
