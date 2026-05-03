@@ -60,13 +60,6 @@ async def get_swing_matrix(
             if len(symbols_to_fetch) >= limit:
                 break
     
-    # Proteção Render: scans muito grandes podem causar 502/timeouts.
-    # O frontend pode pedir mais símbolos, mas a API processa um lote seguro e rápido.
-    effective_limit = min(len(symbols_to_fetch), 40)
-    symbols_to_fetch = symbols_to_fetch[:effective_limit]
-    coin_ids_to_fetch = coin_ids_to_fetch[:effective_limit]
-    concurrency = min(concurrency, 8)
-
     log.info('Swing matrix (%s): %d symbols', mode, len(symbols_to_fetch))
     
     rows = await compute_swing_matrix(

@@ -11,7 +11,6 @@ import { SignalsPage }    from './pages/SignalsPage'
 import { WhalesPage }     from './pages/WhalesPage'
 import { MatrixPage }     from './pages/MatrixPage'
 import { SwingPage }      from './pages/SwingPage'
-import { IntradayPage }   from './pages/IntradayPage'
 import { RiskPage }       from './pages/RiskPage'
 import { StrategyPage }   from './pages/StrategyPage'
 
@@ -31,7 +30,6 @@ export default function App() {
         <Route path="whales"        element={<WhalesPage />} />
         <Route path="matrix"        element={<MatrixPage />} />
         <Route path="swing"         element={<SwingPage />} />
-        <Route path="intraday"      element={<IntradayPage />} />
         <Route path="risk"          element={<RiskPage />} />
         <Route path="strategy"      element={<StrategyPage />} />
         <Route path="watchlist"     element={<WatchlistPage />} />
