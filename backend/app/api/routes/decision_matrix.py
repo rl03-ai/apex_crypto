@@ -95,10 +95,28 @@ async def get_decision_matrix(
     bullish = sum(1 for r in rows if r['composite'] >= 3)
     bearish = sum(1 for r in rows if r['composite'] <= -3)
     
-    # Stage counts
-    accumulating = sum(1 for r in rows if r['stage_1d']['stage'] == 'ACCUMULATION' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'ACCUMULATION'))
-    early_markup = sum(1 for r in rows if r['stage_1d']['stage'] == 'MARKUP_EARLY' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'MARKUP_EARLY'))
-    extended = sum(1 for r in rows if r['stage_1d']['stage'] == 'EXTENDED' or (r.get('stage_1w') and r['stage_1w']['stage'] == 'EXTENDED'))
+    # Phase counts
+    # O detector atual devolve `phase` em PT-PT (ACUMULACAO, MANIPULACAO,
+    # DISTRIBUICAO, CHOP), não `stage` em inglês. Usar `.get()` evita 500
+    # caso alguma linha venha incompleta por falhas temporárias de API externa.
+    def _phase(row: dict, tf: str) -> str:
+        return ((row.get(tf) or {}).get('phase') or '').upper()
+
+    accumulating = sum(
+        1 for r in rows
+        if _phase(r, 'stage_1d') == 'ACUMULACAO'
+        or _phase(r, 'stage_1w') == 'ACUMULACAO'
+    )
+    early_markup = sum(
+        1 for r in rows
+        if _phase(r, 'stage_1d') == 'MANIPULACAO'
+        or _phase(r, 'stage_1w') == 'MANIPULACAO'
+    )
+    extended = sum(
+        1 for r in rows
+        if _phase(r, 'stage_1d') == 'DISTRIBUICAO'
+        or _phase(r, 'stage_1w') == 'DISTRIBUICAO'
+    )
     
     tier_s = sum(1 for r in rows if r['tier'] == 'S')
     tier_a = sum(1 for r in rows if r['tier'] == 'A')
