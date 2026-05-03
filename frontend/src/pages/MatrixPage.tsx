@@ -55,12 +55,12 @@ export function MatrixPage() {
     let rows = data.data
     if (filter === 'accumulation') {
       rows = rows.filter(r =>
-        r.stage_1d.stage === 'ACCUMULATION' ||
+        (r.stage_1d && r.stage_1d.stage === 'ACCUMULATION') ||
         (r.stage_1w && r.stage_1w.stage === 'ACCUMULATION')
       )
     } else if (filter === 'early') {
       rows = rows.filter(r =>
-        r.stage_1d.stage === 'MARKUP_EARLY' ||
+        (r.stage_1d && r.stage_1d.stage === 'MARKUP_EARLY') ||
         (r.stage_1w && r.stage_1w.stage === 'MARKUP_EARLY')
       )
     } else if (filter === 'avoid_extended') {
@@ -179,14 +179,14 @@ export function MatrixPage() {
 
 
 function StageBadge({ stage }: { stage: StageData | null | undefined }) {
-  if (!stage) return <span style={{ color: '#4d6280' }}>—</span>
+  if (!stage || !stage.stage) return <span style={{ color: '#4d6280' }}>—</span>
   
-  const cls = stage.stage.toLowerCase().replace('_', '-')
+  const cls = (stage.stage || '').toLowerCase().replace('_', '-')
   return (
-    <div className={`stage-badge stage-${cls}`} title={stage.reasons.join(' · ')}>
-      <span className="stage-emoji">{STAGE_EMOJI[stage.stage]}</span>
-      <span className="stage-label">{STAGE_LABEL[stage.stage]}</span>
-      <span className="stage-score">{stage.score > 0 ? '+' : ''}{stage.score}</span>
+    <div className={`stage-badge stage-${cls}`} title={(stage?.reasons || []).join(' · ')}>
+      <span className="stage-emoji">{STAGE_EMOJI[stage?.stage || 'CHOP']}</span>
+      <span className="stage-label">{STAGE_LABEL[stage?.stage || 'CHOP']}</span>
+      <span className="stage-score">{stage && stage.score > 0 ? '+' : ''}{stage?.score || 0}</span>
     </div>
   )
 }
@@ -271,18 +271,18 @@ function MatrixRowComponent({ row, expanded, onToggle }: {
                 <h3>📈 Stage Analysis</h3>
                 <div className="matrix-expanded-row">
                   <span>1D Stage</span>
-                  <strong>{STAGE_EMOJI[row.stage_1d.stage]} {row.stage_1d.stage_label} · Tier {row.stage_1d.tier}</strong>
+                  <strong>{row.stage_1d ? `${STAGE_EMOJI[row.stage_1d.stage] || '?'} ${row.stage_1d.stage_label || 'Unknown'} · Tier ${row.stage_1d.tier || '—'}` : 'No Data'}</strong>
                 </div>
-                {row.stage_1d.reasons.map((r, i) => (
+                {row.stage_1d && row.stage_1d.reasons && row.stage_1d.reasons.map((r, i) => (
                   <div key={i} style={{ fontSize: 11, color: '#9fb0c8', paddingLeft: 12, lineHeight: 1.5 }}>· {r}</div>
                 ))}
                 {row.stage_1w && (
                   <>
                     <div className="matrix-expanded-row" style={{ marginTop: 10 }}>
                       <span>1W Stage</span>
-                      <strong>{STAGE_EMOJI[row.stage_1w.stage]} {row.stage_1w.stage_label} · Tier {row.stage_1w.tier}</strong>
+                      <strong>{STAGE_EMOJI[row.stage_1w.stage] || '?'} {row.stage_1w.stage_label || 'Unknown'} · Tier {row.stage_1w.tier || '—'}</strong>
                     </div>
-                    {row.stage_1w.reasons.map((r, i) => (
+                    {row.stage_1w.reasons && row.stage_1w.reasons.map((r, i) => (
                       <div key={i} style={{ fontSize: 11, color: '#9fb0c8', paddingLeft: 12, lineHeight: 1.5 }}>· {r}</div>
                     ))}
                   </>
