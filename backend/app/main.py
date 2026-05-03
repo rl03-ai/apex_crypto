@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 import app.models  # noqa: F401 — regista todos os modelos no Base
@@ -31,59 +32,64 @@ app = FastAPI(
     version='2.0.0',
 )
 
-# ── CORS: Allow all Render origins + localhost ─────────────────────────────
-def _get_cors_origins() -> list[str]:
-    """Compute allowed origins — permissivo para Render."""
-    origins: set[str] = set()
+
+# ── Global Exception Handler with CORS ──────────────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Handle all exceptions and always return CORS headers."""
+    logger.error(f'Exception: {exc}', exc_info=True)
     
-    # Render apps
-    origins.update([
-        'https://apex-crypto-terminal.onrender.com',
-        'https://apex-crypto-api.onrender.com',
-    ])
-    
-    # All other Render subdomains (catch-all)
-    origins.add('https://*.onrender.com')
-    
-    # Local dev
-    origins.update(['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173'])
-    
-    return list(origins)
+    return JSONResponse(
+        status_code=500,
+        content={'detail': 'Internal server error'},
+        headers={
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+    )
 
 
-class CORSForcedMiddleware(BaseHTTPMiddleware):
-    """Force CORS headers on ALL responses, including errors."""
+# ── CORS Middleware (applied early) ─────────────────────────────────────────
+class CORSEarlyMiddleware(BaseHTTPMiddleware):
+    """CORS on every request, especially preflight."""
     
-    async def dispatch(self, request: Request, call_next) -> Response:
-        # Handle preflight requests
+    async def dispatch(self, request: StarletteRequest, call_next) -> Response:
+        # Always respond to OPTIONS
         if request.method == 'OPTIONS':
             return Response(
                 status_code=200,
                 headers={
                     'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                    'Access-Control-Max-Age': '3600',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+                    'Access-Control-Max-Age': '86400',
                 }
             )
         
-        # Process the request
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            logger.error(f'Middleware error: {e}')
+            response = Response(status_code=500, content='Internal error')
         
-        # Add CORS headers to ALL responses
+        # Force CORS on all responses
         response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range'
         
         return response
 
 
-app.add_middleware(CORSForcedMiddleware)
+# Add CORS middleware FIRST
+app.add_middleware(CORSEarlyMiddleware)
 
+# Then standard CORS (redundant but safe)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
-    allow_credentials=True,
+    allow_credentials=False,  # Important: can't use with allow_origins=['*']
     allow_methods=['*'],
     allow_headers=['*'],
 )
