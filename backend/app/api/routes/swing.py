@@ -76,13 +76,13 @@ async def get_swing_matrix(
         rows = [r for r in rows if r['action'] == action.upper()]
     
     if stage:
-        rows = [r for r in rows if r['swing']['phase'] == stage.upper()]
+        rows = [r for r in rows if (r.get('swing') or {}).get('stage') == stage.upper()]
     
     # Aggregate stats
-    breakouts = sum(1 for r in rows if r['swing']['phase'] == 'BREAKOUT')
-    pullbacks = sum(1 for r in rows if r['swing']['phase'] == 'PULLBACK')
-    momentum = sum(1 for r in rows if r['swing']['phase'] == 'MOMENTUM')
-    reversal = sum(1 for r in rows if r['swing']['phase'] == 'REVERSAL')
+    breakouts = sum(1 for r in rows if (r.get('swing') or {}).get('stage') == 'BREAKOUT')
+    pullbacks = sum(1 for r in rows if (r.get('swing') or {}).get('stage') == 'PULLBACK')
+    momentum = sum(1 for r in rows if (r.get('swing') or {}).get('stage') == 'MOMENTUM')
+    reversal = sum(1 for r in rows if (r.get('swing') or {}).get('stage') == 'REVERSAL')
     avoid = sum(1 for r in rows if r['action'] == 'AVOID')
     tier_s = sum(1 for r in rows if r['tier'] == 'S')
     tier_a = sum(1 for r in rows if r['tier'] == 'A')

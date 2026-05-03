@@ -80,8 +80,30 @@ def detect_swing(
         reasons.append('⚠ Macro bear — pullback only')
         # Não reduz score em ACCUM de swing, só avisa
     
+    # Compatibilidade API/UI: o detector unificado devolve phase (PT),
+    # enquanto a página Swing usa stage/stage_label (EN).
+    if phase == 'ACUMULACAO':
+        stage = 'PULLBACK' if pullback_ma21 or rsi <= 55 else 'REVERSAL'
+    elif phase == 'MANIPULACAO':
+        stage = 'BREAKOUT' if squeeze_release or _vol_burst else 'MOMENTUM'
+    elif phase == 'DISTRIBUICAO':
+        stage = 'EXHAUSTION'
+    else:
+        stage = 'NO_SETUP'
+
+    stage_labels = {
+        'BREAKOUT': 'Breakout',
+        'PULLBACK': 'Pullback',
+        'MOMENTUM': 'Momentum',
+        'REVERSAL': 'Reversal',
+        'EXHAUSTION': 'Exhaustion',
+        'NO_SETUP': 'No setup',
+    }
+
     return {
         'phase': phase,
+        'stage': stage,
+        'stage_label': stage_labels.get(stage, stage),
         'score': score,
         'tier': tier,
         'action': action,

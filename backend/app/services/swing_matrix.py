@@ -112,23 +112,26 @@ async def compute_swing_row(
         pullback_ma21=primary.get('pullback_ma21_bull', False),
         vol_burst=primary.get('vol_burst', False),
     )
+    swing['mode'] = mode
     
     # SL/TP swing-specific (2×ATR / 3-4×ATR)
     price = primary.get('price', 0)
     atr_pct = primary.get('atr_pct', 3)
     atr_value = (atr_pct / 100) * price
     
-    stops = {
-        'entry': round(price, 6),
-        'sl': round(price - atr_value * 2, 6),
-        'tp1': round(price + atr_value * 3, 6),
-        'tp2': round(price + atr_value * 4, 6),
-        'sl_pct': round(-atr_value * 2 / price * 100, 2),
-        'tp1_pct': round(atr_value * 3 / price * 100, 2),
-        'tp2_pct': round(atr_value * 4 / price * 100, 2),
-        'r_multiple_1': 1.5,
-        'r_multiple_2': 2.0,
-    } if swing['action'] in ('STRONG BUY', 'BUY') else None
+    stops = None
+    if swing['action'] in ('STRONG BUY', 'BUY') and price and price > 0:
+        stops = {
+            'entry': round(price, 6),
+            'sl': round(price - atr_value * 2, 6),
+            'tp1': round(price + atr_value * 3, 6),
+            'tp2': round(price + atr_value * 4, 6),
+            'sl_pct': round(-atr_value * 2 / price * 100, 2),
+            'tp1_pct': round(atr_value * 3 / price * 100, 2),
+            'tp2_pct': round(atr_value * 4 / price * 100, 2),
+            'r_multiple_1': 1.5,
+            'r_multiple_2': 2.0,
+        }
     
     result = {
         'symbol': binance_sym,
@@ -151,6 +154,11 @@ async def compute_swing_row(
             'squeeze_release': primary.get('squeeze_release', False),
             'macd_bullish': primary.get('macd_bullish', False),
             'aligned_bull': primary.get('aligned_bull', False),
+            'above_vwap': primary.get('above_vwap', False),
+            'vol_burst': primary.get('vol_burst', False),
+            'dist_ma21_pct': primary.get('dist_ma21_pct', 0),
+            'change_24h_pct': primary.get('change_24h_pct', 0),
+            'price_change_7d_pct': primary.get('price_change_7d_pct', 0),
             'atr_pct': atr_pct,
         },
         'fast': {
@@ -174,8 +182,21 @@ async def compute_swing_row(
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
     
-    # Apply phase strength analysis
+    # Apply phase strength analysis using primary timeframe metrics.
     result['phase'] = swing['phase']  # Main phase
+    result['primary'] = {
+        'rsi': primary.get('rsi', 50),
+        'vol_burst': primary.get('vol_burst', False),
+        'squeeze_release': primary.get('squeeze_release', False),
+        'atr_pct': primary.get('atr_pct', 1.5),
+        'change_24h_pct': primary.get('change_24h_pct', 0),
+        'price_change_7d_pct': primary.get('price_change_7d_pct', 0),
+        'dist_ma21_pct': primary.get('dist_ma21_pct', 0),
+        'struct_bias': primary.get('struct_bias', 0),
+        'above_vwap': primary.get('above_vwap', False),
+        'aligned_bull': primary.get('aligned_bull', False),
+        'macd_bullish': primary.get('macd_bullish', False),
+    }
     result = apply_phase_strength(result)
     
     _CACHE[cache_key] = {

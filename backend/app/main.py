@@ -28,18 +28,20 @@ app = FastAPI(
     version='2.0.0',
 )
 
-# ── CORS: Simple, working configuration ─────────────────────────────────────
+# ── CORS: origins from environment + local dev fallbacks ────────────────────
+local_origins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+]
+allowed_origins = list(dict.fromkeys(settings.allowed_origins_list() + local_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'https://apex-crypto-terminal.onrender.com',
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:3000',
-        'http://127.0.0.1:5173',
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allow_methods=['*'],
     allow_headers=['*'],
 )
 

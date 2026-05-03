@@ -203,6 +203,14 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
             'ext_above_ma200_pct': instdash_1d.get('ext_above_ma200_pct'),
             'struct_bias': instdash_1d.get('struct_bias', 0),
             'last_event': (instdash_1d.get('structure') or {}).get('last_event', 'none'),
+            'vol_burst': instdash_1d.get('vol_burst', False),
+            'squeeze': instdash_1d.get('squeeze', False),
+            'squeeze_release': instdash_1d.get('squeeze_release', False),
+            'macd_bullish': instdash_1d.get('macd_bullish', False),
+            'above_vwap': instdash_1d.get('above_vwap', False),
+            'dist_ma21_pct': instdash_1d.get('dist_ma21_pct', 0),
+            'atr_pct': instdash_1d.get('atr_pct', 1.5),
+            'price_change_7d_pct': instdash_1d.get('price_change_7d_pct', 0),
         },
         'stage_1d': stage_1d,
         'stage_1w': stage_1w,
@@ -213,8 +221,22 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
     
-    # Apply phase strength analysis
+    # Apply phase strength analysis with the real primary TF metrics.
+    # Without this, apply_phase_strength() falls back to neutral defaults.
     result['phase'] = stage_1d['phase']  # Main phase
+    result['primary'] = {
+        'rsi': instdash_1d.get('rsi', 50),
+        'vol_burst': instdash_1d.get('vol_burst', False),
+        'squeeze_release': instdash_1d.get('squeeze_release', False),
+        'atr_pct': instdash_1d.get('atr_pct', 1.5),
+        'change_24h_pct': instdash_1d.get('change_24h_pct', 0),
+        'price_change_7d_pct': instdash_1d.get('price_change_7d_pct', 0),
+        'dist_ma21_pct': instdash_1d.get('dist_ma21_pct', 0),
+        'struct_bias': instdash_1d.get('struct_bias', 0),
+        'above_vwap': instdash_1d.get('above_vwap', False),
+        'aligned_bull': instdash_1d.get('aligned_bull', False),
+        'macd_bullish': instdash_1d.get('macd_bullish', False),
+    }
     result = apply_phase_strength(result)
     
     _CACHE[cache_key] = {

@@ -95,28 +95,22 @@ async def get_decision_matrix(
     bullish = sum(1 for r in rows if r['composite'] >= 3)
     bearish = sum(1 for r in rows if r['composite'] <= -3)
     
-    # Phase counts
-    # O detector atual devolve `phase` em PT-PT (ACUMULACAO, MANIPULACAO,
-    # DISTRIBUICAO, CHOP), não `stage` em inglês. Usar `.get()` evita 500
-    # caso alguma linha venha incompleta por falhas temporárias de API externa.
-    def _phase(row: dict, tf: str) -> str:
-        return ((row.get(tf) or {}).get('phase') or '').upper()
+    # Stage counts — defensivo para dados antigos em cache que tenham phase mas não stage
+    def _stage(row: dict, key: str) -> str:
+        data = row.get(key) or {}
+        if data.get('stage'):
+            return data['stage']
+        phase_to_stage = {
+            'ACUMULACAO': 'ACCUMULATION',
+            'MANIPULACAO': 'MARKUP_EARLY',
+            'DISTRIBUICAO': 'DISTRIBUTION',
+            'CHOP': 'CHOP',
+        }
+        return phase_to_stage.get(data.get('phase'), 'CHOP')
 
-    accumulating = sum(
-        1 for r in rows
-        if _phase(r, 'stage_1d') == 'ACUMULACAO'
-        or _phase(r, 'stage_1w') == 'ACUMULACAO'
-    )
-    early_markup = sum(
-        1 for r in rows
-        if _phase(r, 'stage_1d') == 'MANIPULACAO'
-        or _phase(r, 'stage_1w') == 'MANIPULACAO'
-    )
-    extended = sum(
-        1 for r in rows
-        if _phase(r, 'stage_1d') == 'DISTRIBUICAO'
-        or _phase(r, 'stage_1w') == 'DISTRIBUICAO'
-    )
+    accumulating = sum(1 for r in rows if _stage(r, 'stage_1d') == 'ACCUMULATION' or _stage(r, 'stage_1w') == 'ACCUMULATION')
+    early_markup = sum(1 for r in rows if _stage(r, 'stage_1d') in ('MARKUP_EARLY', 'MARKUP_MATURE') or _stage(r, 'stage_1w') in ('MARKUP_EARLY', 'MARKUP_MATURE'))
+    extended = sum(1 for r in rows if _stage(r, 'stage_1d') in ('EXTENDED', 'DISTRIBUTION') or _stage(r, 'stage_1w') in ('EXTENDED', 'DISTRIBUTION'))
     
     tier_s = sum(1 for r in rows if r['tier'] == 'S')
     tier_a = sum(1 for r in rows if r['tier'] == 'A')

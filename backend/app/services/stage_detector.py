@@ -78,8 +78,27 @@ def detect_stage(
         reasons.append('⚠ Macro BAIXA — reduce conviction')
         score = max(score - 2, 0)
     
+    # Compatibilidade API/UI: o frontend e alguns endpoints antigos ainda usam
+    # stage/stage_label. Mantemos phase (PT) como fonte semântica e expomos
+    # stage (EN) para evitar KeyError e UI vazia.
+    phase_to_stage = {
+        'ACUMULACAO': 'ACCUMULATION',
+        'MANIPULACAO': 'MARKUP_EARLY',
+        'DISTRIBUICAO': 'DISTRIBUTION',
+        'CHOP': 'CHOP',
+    }
+    stage_labels = {
+        'ACCUMULATION': 'Accumulation',
+        'MARKUP_EARLY': 'Early Markup',
+        'DISTRIBUTION': 'Distribution',
+        'CHOP': 'Chop',
+    }
+    stage = phase_to_stage.get(phase, 'CHOP')
+
     return {
         'phase': phase,
+        'stage': stage,
+        'stage_label': stage_labels.get(stage, stage),
         'score': score,
         'tier': tier,
         'action': action,
