@@ -45,6 +45,7 @@ async def compute_swing_row(
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
     from app.services.binance import resolve_binance_symbol
     from app.services.swing_detector import detect_swing
+    from app.services.phase_strength_detector import apply_phase_strength
     
     primary_tf, fast_tf, macro_tf, primary_htf = _tf_config(mode)
     
@@ -93,13 +94,23 @@ async def compute_swing_row(
             'funding': whale_metrics.get('funding', {}).get('funding_rate_pct') if whale_metrics.get('funding') else None,
         }
     
-    # Detect swing
+    # Detect swing phase
     swing = detect_swing(
-        primary=primary,
-        fast=fast,
-        macro=macro,
-        mode=mode,
-        whale=whale_data,
+        rsi=primary.get('rsi', 50),
+        struct_bias=primary.get('struct_bias', 0),
+        squeeze=primary.get('squeeze', False),
+        squeeze_release=primary.get('squeeze_release', False),
+        macd_bullish=primary.get('macd_bullish', False),
+        aligned_bull=primary.get('aligned_bull', False),
+        above_vwap=primary.get('above_vwap', False),
+        dist_ma21_pct=primary.get('dist_ma21_pct', 0),
+        atr_pct=primary.get('atr_pct', 1.5),
+        change_24h_pct=primary.get('change_24h_pct', 0),
+        price_change_7d_pct=primary.get('price_change_7d_pct', 0),
+        structure=primary.get('structure'),
+        htf_trend=macro.get('htf_trend') if macro else None,
+        pullback_ma21=primary.get('pullback_ma21_bull', False),
+        vol_burst=primary.get('vol_burst', False),
     )
     
     # SL/TP swing-specific (2×ATR / 3-4×ATR)
@@ -162,6 +173,10 @@ async def compute_swing_row(
         'action': swing['action'],
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
+    
+    # Apply phase strength analysis
+    result['phase'] = swing['phase']  # Main phase
+    result = apply_phase_strength(result)
     
     _CACHE[cache_key] = {
         'data': result,

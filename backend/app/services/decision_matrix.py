@@ -29,6 +29,7 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     from app.services.whale_tracking import fetch_whale_metrics, compute_whale_score
     from app.services.binance import resolve_binance_symbol
     from app.services.stage_detector import detect_stage
+    from app.services.phase_strength_detector import apply_phase_strength
     
     # Resolve symbol
     if symbol.upper().endswith('USDT'):
@@ -78,26 +79,59 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
         }
     
     # Stage detection — 1d e 1w (whale só passa ao 1d para não duplicar peso)
-    stage_1d = detect_stage(instdash_1d, whale_data)
-    stage_1w = detect_stage(instdash_1w, None) if instdash_1w else None
+    stage_1d = detect_stage(
+        rsi=instdash_1d.get('rsi', 50),
+        adx=instdash_1d.get('adx', 20),
+        struct_bias=instdash_1d.get('struct_bias', 0),
+        squeeze=instdash_1d.get('squeeze', False),
+        squeeze_release=instdash_1d.get('squeeze_release', False),
+        macd_bullish=instdash_1d.get('macd_bullish', False),
+        aligned_bull=instdash_1d.get('aligned_bull', False),
+        above_vwap=instdash_1d.get('above_vwap', False),
+        dist_ma21_pct=instdash_1d.get('dist_ma21_pct', 0),
+        atr_pct=instdash_1d.get('atr_pct', 1.5),
+        change_24h_pct=instdash_1d.get('change_24h_pct', 0),
+        price_change_7d_pct=instdash_1d.get('price_change_7d_pct', 0),
+        structure=instdash_1d.get('structure'),
+        htf_trend=None,  # 1d is primary, no HTF
+        ext_above_ma200_pct=instdash_1d.get('ext_above_ma200_pct', 0),
+    )
+    
+    stage_1w = detect_stage(
+        rsi=instdash_1w.get('rsi', 50),
+        adx=instdash_1w.get('adx', 20),
+        struct_bias=instdash_1w.get('struct_bias', 0),
+        squeeze=instdash_1w.get('squeeze', False),
+        squeeze_release=instdash_1w.get('squeeze_release', False),
+        macd_bullish=instdash_1w.get('macd_bullish', False),
+        aligned_bull=instdash_1w.get('aligned_bull', False),
+        above_vwap=instdash_1w.get('above_vwap', False),
+        dist_ma21_pct=instdash_1w.get('dist_ma21_pct', 0),
+        atr_pct=instdash_1w.get('atr_pct', 1.5),
+        change_24h_pct=instdash_1w.get('change_24h_pct', 0),
+        price_change_7d_pct=instdash_1w.get('price_change_7d_pct', 0),
+        structure=instdash_1w.get('structure'),
+        htf_trend='LATERAL',  # 1w is HTF ref for 1d
+        ext_above_ma200_pct=instdash_1w.get('ext_above_ma200_pct', 0),
+    ) if instdash_1w else None
     
     # ════════════════════════════════════════════════════════════════════════
     # CROSS-TF COHERENCE GATEKEEPING
-    # Princípio: se 1w está bearish/extended, NUNCA dar BUY mesmo se 1d for bull.
+    # Princípio: se 1w está em DISTRIBUIÇÃO, NUNCA dar BUY mesmo se 1d for bull.
     # 1w domina porque holds são semanas/meses.
     # ════════════════════════════════════════════════════════════════════════
     
-    BEARISH_STAGES = {'MARKDOWN', 'DISTRIBUTION', 'EXTENDED'}
-    BULLISH_STAGES = {'ACCUMULATION', 'MARKUP_EARLY', 'MARKUP_MATURE'}
+    BEARISH_PHASES = {'DISTRIBUICAO'}
+    BULLISH_PHASES = {'ACUMULACAO', 'MANIPULACAO'}
     
-    # Composite: se 1w bearish, força composite negativo (ou no máximo zero)
+    # Composite: se 1w DISTRIBUIÇÃO, força composite negativo (ou no máximo zero)
     if stage_1w:
-        if stage_1w['stage'] in BEARISH_STAGES:
-            # 1w bearish → cap composite a min(1d_score, 1w_score)
+        if stage_1w['phase'] in BEARISH_PHASES:
+            # 1w distribuição → cap composite a min(1d_score, 1w_score)
             composite = min(stage_1d['score'], stage_1w['score'])
-            # Se 1d é bull mas 1w é bear → composite pode ser ligeiramente negativo
+            # Se 1d é bull mas 1w é distribuição → composite negativo
             if composite > 0:
-                composite = -1  # forçar negativo: estrutura macro bear
+                composite = -2  # forçar negativo: estrutura macro em distribuição
         else:
             # Ambos OK → ponderação normal (1w domina com 60%)
             composite = round((stage_1w['score'] * 0.6 + stage_1d['score'] * 0.4), 2)
@@ -113,17 +147,12 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     action_1d = stage_1d['action']
     action_1w = stage_1w['action'] if stage_1w else action_1d
     
-    # REGRA: 1w MARKDOWN/EXTENDED → AVOID, sem excepções
-    if stage_1w and stage_1w['stage'] in BEARISH_STAGES:
-        if stage_1w['stage'] == 'MARKDOWN' and stage_1w['score'] <= -5:
-            final_action = 'AVOID'
-        elif stage_1w['stage'] == 'EXTENDED':
-            final_action = 'AVOID'
-        else:
-            final_action = 'WATCH'  # MARKDOWN moderado ou DISTRIBUTION
+    # REGRA: 1w DISTRIBUIÇÃO → AVOID, sem excepções
+    if stage_1w and stage_1w['phase'] in BEARISH_PHASES:
+        final_action = 'AVOID'
     
-    # REGRA: 1d EXTENDED → AVOID
-    elif stage_1d['stage'] == 'EXTENDED':
+    # REGRA: 1d DISTRIBUIÇÃO → AVOID
+    elif stage_1d['phase'] == 'DISTRIBUICAO':
         final_action = 'AVOID'
     
     # REGRA: convergência bull em ambos TFs → STRONG BUY
@@ -135,8 +164,8 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     elif action_1d in ('STRONG BUY', 'BUY') and action_1w in ('STRONG BUY', 'BUY', 'HOLD'):
         final_action = action_1d
     
-    # REGRA: 1d bull mas 1w lateral/watch → HOLD (não BUY agressivo)
-    elif action_1d in ('STRONG BUY', 'BUY') and action_1w == 'WATCH':
+    # REGRA: 1d bull mas 1w neutral/wait → HOLD (não BUY agressivo)
+    elif action_1d in ('STRONG BUY', 'BUY') and action_1w in ('HOLD', 'WAIT'):
         final_action = 'HOLD'
     
     else:
@@ -146,7 +175,7 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
     tier_order = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
     if stage_1w:
         # Se 1w é bearish, tier do 1w domina (puxa para baixo)
-        if stage_1w['stage'] in BEARISH_STAGES:
+        if stage_1w['phase'] in BEARISH_PHASES:
             final_tier = stage_1w['tier']  # tipicamente D
         else:
             # Pega no menor tier (mais conservador)
@@ -183,6 +212,10 @@ async def compute_decision_row(symbol: str, coin_id: str | None = None) -> dict 
         'action': final_action,
         'timestamp': int(datetime.now(timezone.utc).timestamp()),
     }
+    
+    # Apply phase strength analysis
+    result['phase'] = stage_1d['phase']  # Main phase
+    result = apply_phase_strength(result)
     
     _CACHE[cache_key] = {
         'data': result,

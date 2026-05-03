@@ -28,36 +28,28 @@ app = FastAPI(
     version='2.0.0',
 )
 
-# ── CORS: Auto-detect allowed origins ──────────────────────────────────────
-# Prioridade:
-#   1. ALLOWED_ORIGINS env var (se definida)
-#   2. Auto-detect baseado no hostname (ex: api.onrender.com → terminal.onrender.com)
-#   3. Fallback local para dev
+# ── CORS: Allow all Render origins + localhost ─────────────────────────────
 def _get_cors_origins() -> list[str]:
-    """Compute allowed origins com auto-detect."""
+    """Compute allowed origins — permissivo para Render."""
     origins: set[str] = set()
     
-    # Se ALLOWED_ORIGINS está definida, usa-a
-    if settings.allowed_origins and settings.allowed_origins.strip():
-        origins.update(settings.allowed_origins_list())
+    # Render apps
+    origins.update([
+        'https://apex-crypto-terminal.onrender.com',
+        'https://apex-crypto-api.onrender.com',
+    ])
     
-    # Auto-detect: se estamos em Render, permitir o frontend correspondente
-    # Ex: apex-crypto-api.onrender.com → apex-crypto-terminal.onrender.com
-    import os
-    render_service = os.getenv('RENDER_SERVICE_NAME', '')
-    if 'onrender.com' in render_service or 'onrender.com' in os.getenv('RENDER_EXTERNAL_URL', ''):
-        # Assumir que o frontend é o mesmo hostname com -api substituído por -terminal
-        frontend_url = render_service.replace('-api', '-terminal') if '-api' in render_service else 'apex-crypto-terminal'
-        origins.add(f'https://{frontend_url}.onrender.com')
+    # All other Render subdomains (catch-all)
+    origins.add('https://*.onrender.com')
     
-    # Fallback dev local
-    origins.update(['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'])
+    # Local dev
+    origins.update(['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173'])
     
     return list(origins)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_cors_origins(),
+    allow_origins=['https://*.onrender.com', 'http://localhost:*', 'http://127.0.0.1:*'],  # Regex patterns
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
